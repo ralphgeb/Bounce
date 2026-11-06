@@ -12,12 +12,13 @@ struct BounceApp: App {
     }
 }
 
-/// The menu, and each game's landing page and board. Bounce follows the look's light or dark;
-/// Maze is always dark.
+/// The menu, and each game's landing page and board. Bounce and Switch follow the look's light or
+/// dark; Maze is always dark.
 struct RootView: View {
     @State private var screen: Screen = .menu
     @State private var game = Game()
     @State private var maze = MazeGame()
+    @State private var switcher = SwitchGame()
     @State private var settings = Settings.shared
     @State private var showSettings = false
     @Environment(\.colorScheme) private var scheme
@@ -27,6 +28,7 @@ struct RootView: View {
         switch screen {
         case .bounce: return game.phase == .playing || game.phase == .paused
         case .maze: return maze.phase != .ready
+        case .switcher: return switcher.phase != .ready
         case .menu: return false
         }
     }
@@ -36,11 +38,11 @@ struct RootView: View {
         let dark = settings.darkColors
         GeometryReader { geo in
             ZStack {
-                (screen == .maze ? dark.background : c.background).ignoresSafeArea()
+                (screen == .maze ? Color.black : c.background).ignoresSafeArea()
 
                 switch screen {
                 case .menu:
-                    MenuView(colors: c, dark: dark, open: { s in screen = s }, showSettings: $showSettings)
+                    MenuView(colors: c, open: { s in screen = s }, showSettings: $showSettings)
                         .transition(.opacity)
                 case .bounce:
                     Group {
@@ -61,6 +63,15 @@ struct RootView: View {
                     }
                     .environment(\.colorScheme, .dark)
                     .transition(.opacity)
+                case .switcher:
+                    Group {
+                        if switcher.phase == .ready {
+                            SwitchHome(game: switcher, colors: c, onBack: { screen = .menu })
+                        } else {
+                            SwitchView(game: switcher, colors: c)
+                        }
+                    }
+                    .transition(.opacity)
                 }
             }
             .onAppear { layout(geo) }
@@ -69,6 +80,7 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.3), value: screen)
         .animation(.easeInOut(duration: 0.25), value: game.phase)
         .animation(.easeInOut(duration: 0.3), value: maze.phase == .ready)
+        .animation(.easeInOut(duration: 0.3), value: switcher.phase == .ready)
         .statusBarHidden(playing)
         .persistentSystemOverlays(playing ? .hidden : .automatic)
         .defersSystemGestures(on: .bottom)
@@ -77,7 +89,7 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { game.pause(); maze.pause() }
+            if phase != .active { game.pause(); maze.pause(); switcher.pause() }
         }
     }
 

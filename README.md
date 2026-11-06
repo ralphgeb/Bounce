@@ -1,19 +1,28 @@
 # Bounce
 
 Minimal games for iPhone, in the same style as Halo and Scout: the same looks, type and quiet interface.
-The app opens on a menu with one panel per game:
+The app opens on a menu of three games, one section each, split by thin lines:
 
-- **Bounce**: a block breaker with an endless wall (in the chosen look, light or dark).
-- **Maze**: find your way through a huge maze in the dark with a cone of light (always dark).
+- **Bounce**: a block breaker with an endless wall.
+- **Maze**: find your way through a huge maze in pitch black, by the light you give off.
+- **Switch**: a match-three of shades, with the same special shapes as Bounce.
 
-On every landing page, drag anywhere and the logo's squares stretch after your finger and spring back.
+On the menu and every landing page, drag anywhere and the logos' squares stretch after your finger and spring back.
 
 ## Maze
 
-- You are the accent square in the dark. **Swipe** up, down, left or right: your light turns that way and you slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
-- **The light** is a cone in front of you (about 70° wide, 7.5 tiles long) and a small glow around you. Rays stop at walls, so walls throw shadows; walls you've lit stay faintly in memory.
-- **The way out** is an accent circle with its own glow, the farthest spot from where you start. You only see it once your light reaches it.
-- **Levels**: level 1 is 10 × 14 rooms; each level adds 3 across and 4 down, with a few loops so there's more than one way. Every player gets the same maze for each level. Records: the deepest level and your fastest time for each.
+- Everything is pitch black. You are the accent square, and light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
+- **Swipe** up, down, left or right to slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
+- **Dots**: tap to drop a small dot where you stand (30 a level); tap on it again to pick it up. Your light shows them when you come back, so you know you've been there.
+- **The way out** is an accent circle with its own glow, the farthest spot from where you start.
+- **Levels**: level 1 is 10 × 14 rooms; each level adds 3 across and 4 down, with a few loops. Every player gets the same maze for each level. Records: the deepest level and your fastest time for each.
+- Settings › Maze › **Show the walls** draws every wall faintly, for trying things out.
+
+## Switch
+
+- A 7 × 8 board of squares in five shades (four of the main colour and the accent). **Swipe** a square to swap it with its neighbour; three or more of a shade in a line clear, the rest fall, and new squares drop in. Chains score ×2, ×3…
+- **Powers**, in the shade of the square they're on: **four in a line** makes a line clearer (cut corners and a line across clears the row, a line down clears the column), **an L or a T** makes a circle that clears the squares around it, **five in a line** makes a diamond that clears every square of its shade. They go off when they're part of a line or caught in another power, and now and then one turns up on its own.
+- **30 moves** a game; the best score is kept.
 
 ## Bounce
 
@@ -42,9 +51,10 @@ BounceApp/
   project.yml        XcodeGen project
   Sources/
     BounceApp.swift    entry point: the menu and each game's screens
-    Menu/              the menu with a panel per game
+    Menu/              the menu: a section per game
     Common/            the stretchy logo, the back arrow, the frame timer
     Maze/              Maze: the maze and the light, the game, drawing, its screens
+    Switch/            Switch: the board, the rules, drawing, its screens
     Game.swift         the board, physics, lives, chains and the display link
     GameView.swift     the canvas, the score, lives and pause
     HomeView.swift     the landing page

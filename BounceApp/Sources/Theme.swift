@@ -96,6 +96,10 @@ final class Settings {
     /// Maze: the deepest level reached, and the fastest time for each level ("1": seconds).
     var mazeDeepest: Int { didSet { defaults.set(mazeDeepest, forKey: "maze.deepest") } }
     var mazeTimes: [String: Double] { didSet { defaults.set(mazeTimes, forKey: "maze.times") } }
+    /// Maze: draw every wall faintly, to see the layout (for trying things out).
+    var mazeRevealWalls: Bool { didSet { defaults.set(mazeRevealWalls, forKey: "maze.reveal") } }
+    /// Switch: the best score.
+    var switchBest: Int { didSet { defaults.set(switchBest, forKey: "switch.best") } }
 
     private init() {
         lookID = defaults.string(forKey: "look") ?? "graphite"
@@ -105,6 +109,8 @@ final class Settings {
         longest = defaults.double(forKey: "longest")
         mazeDeepest = defaults.integer(forKey: "maze.deepest")
         mazeTimes = defaults.dictionary(forKey: "maze.times") as? [String: Double] ?? [:]
+        mazeRevealWalls = defaults.bool(forKey: "maze.reveal")
+        switchBest = defaults.integer(forKey: "switch.best")
     }
 
     var look: Look { Look.all.first { $0.id == lookID } ?? Look.all[0] }

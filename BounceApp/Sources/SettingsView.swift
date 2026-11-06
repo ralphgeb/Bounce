@@ -69,6 +69,12 @@ struct SettingsView: View {
                 Section("Maze") {
                     LabeledContent("Deepest level", value: settings.mazeDeepest > 0 ? "\(settings.mazeDeepest)" : "–")
                     LabeledContent("Fastest level 1", value: settings.mazeTimes["1"].map(formatTime) ?? "–")
+                    Toggle("Show the walls", isOn: $settings.mazeRevealWalls).tint(colors.accent)
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section("Switch") {
+                    LabeledContent("Best score", value: "\(settings.switchBest)")
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Maze: you are a square in the dark with a cone of light in front of you. Swipe to slide;
-/// you stop at walls and at every turning. Find the glowing way out to go one level deeper.
+/// Maze: you are a square in pitch black, giving off light all around you. Walls catch the light and
+/// throw shadows, and that is all you see. Swipe to slide; you stop at walls and at every turning.
+/// Tap to drop a dot (30 a level) so you know where you've been. Find the glowing way out to go deeper.
 @MainActor
 @Observable
 final class MazeGame {
@@ -31,15 +32,17 @@ final class MazeGame {
     /// After a run: the level you got to and how long it took (for the landing page).
     private(set) var lastRun: (level: Int, time: Double)?
     private(set) var newRecord = false
+    private(set) var dotsLeft = 30
+    let dotsPerLevel = 30
 
     // The board, in tile units. The canvas reads these every frame.
     @ObservationIgnored private(set) var maze = Maze.generate(level: 1)
     @ObservationIgnored private(set) var pos = CGPoint(x: 1.5, y: 1.5)      // the player's centre
     @ObservationIgnored private(set) var facing: Double = -.pi / 2          // where the light points
-    @ObservationIgnored private(set) var cone: [CGPoint] = []
-    @ObservationIgnored private(set) var halo: [CGPoint] = []
+    @ObservationIgnored private(set) var light: [CGPoint] = []
     @ObservationIgnored private(set) var lit: [Int: Double] = [:]
-    @ObservationIgnored private(set) var seen = Set<Int>()
+    @ObservationIgnored private(set) var dots = Set<Int>()
+    @ObservationIgnored private(set) var range: Double = 5
     @ObservationIgnored private(set) var flash: Double = 0
     @ObservationIgnored private(set) var bump: (dir: Dir, amount: Double)?
     @ObservationIgnored private(set) var squash: Double = 0                  // a little stretch while sliding
@@ -52,9 +55,8 @@ final class MazeGame {
     private let ticker = FrameTicker()
     @ObservationIgnored private var toastTask: Task<Void, Never>?
 
-    let coneHalfAngle = 0.62          // about 70° wide
-    let coneRange = 7.5               // tiles
-    let haloRange = 1.6
+    /// How far the light reaches, in tiles. It breathes a little.
+    let baseRange = 5.0
     private let speed = 13.0          // tiles a second
 
     init() {
@@ -91,13 +93,33 @@ final class MazeGame {
         pos = center(tile)
         target = nil; moving = nil; queued = nil
         facing = -.pi / 2; facingTarget = facing
-        seen = []
+        dots = []
+        dotsLeft = dotsPerLevel
         levelTime = 0
         relight()
         frame &+= 1
     }
 
     private func center(_ t: (x: Int, y: Int)) -> CGPoint { CGPoint(x: Double(t.x) + 0.5, y: Double(t.y) + 0.5) }
+
+    // MARK: Dots
+
+    /// Tap: drop a dot where you stand, or pick one up if there's one here.
+    func tap() {
+        guard phase == .playing, target == nil else { return }
+        let k = Maze.key(tile.x, tile.y)
+        if dots.contains(k) {
+            dots.remove(k); dotsLeft += 1
+            Haptics.tap(.soft, intensity: 0.6)
+        } else if dotsLeft > 0 {
+            dots.insert(k); dotsLeft -= 1
+            Haptics.tap(.rigid, intensity: 0.6)
+        } else {
+            show("No dots left")
+            Haptics.notify(.warning)
+        }
+        frame &+= 1
+    }
 
     // MARK: Moving
 
@@ -207,10 +229,9 @@ final class MazeGame {
     }
 
     private func relight() {
+        range = baseRange * (1 + 0.025 * sin(totalTime * 1.7))
         var l: [Int: Double] = [:]
-        cone = Lighting.cast(maze, from: pos, angle: facing, halfAngle: coneHalfAngle, range: coneRange, rays: 150, lit: &l)
-        halo = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: haloRange, rays: 56, lit: &l)
+        light = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: range, rays: 360, lit: &l)
         lit = l
-        seen.formUnion(l.keys)
     }
 }

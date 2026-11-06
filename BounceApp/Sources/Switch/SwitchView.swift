@@ -1,0 +1,331 @@
+import SwiftUI
+
+/// Where the board sits on screen.
+struct SwitchLayout {
+    let origin: CGPoint
+    let cell: CGFloat
+
+    init(size: CGSize, cols: Int, rows: Int) {
+        let side: CGFloat = 18
+        let byWidth = (size.width - side * 2) / CGFloat(cols)
+        let byHeight = (size.height - 330) / CGFloat(rows)
+        cell = max(20, min(byWidth, byHeight))
+        let w = cell * CGFloat(cols), h = cell * CGFloat(rows)
+        origin = CGPoint(x: (size.width - w) / 2, y: max(150, (size.height - h) / 2 + 30))
+    }
+
+    func cellAt(_ p: CGPoint, cols: Int, rows: Int) -> Int? {
+        let x = Int(floor((p.x - origin.x) / cell)), y = Int(floor((p.y - origin.y) / cell))
+        guard x >= 0, y >= 0, x < cols, y < rows else { return nil }
+        return y * cols + x
+    }
+}
+
+/// Playing Switch: the board, the score, moves left and best.
+struct SwitchView: View {
+    let game: SwitchGame
+    let colors: Colors
+
+    @State private var swiped = false
+    @State private var from: Int?
+
+    var body: some View {
+        let frame = game.frame
+        GeometryReader { geo in
+            let layout = SwitchLayout(size: geo.size, cols: game.cols, rows: game.rows)
+            ZStack {
+                Canvas { ctx, _ in
+                    _ = frame
+                    draw(&ctx, layout)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { v in
+                            if from == nil {
+                                from = layout.cellAt(v.startLocation, cols: game.cols, rows: game.rows)
+                                game.pressed = from
+                            }
+                            guard !swiped, let cell = from else { return }
+                            let t = v.translation
+                            guard hypot(t.width, t.height) > layout.cell * 0.3 else { return }
+                            swiped = true
+                            game.pressed = nil
+                            if abs(t.width) > abs(t.height) {
+                                game.swipe(from: cell, dx: t.width > 0 ? 1 : -1, dy: 0)
+                            } else {
+                                game.swipe(from: cell, dx: 0, dy: t.height > 0 ? 1 : -1)
+                            }
+                        }
+                        .onEnded { _ in
+                            swiped = false
+                            from = nil
+                            game.pressed = nil
+                        }
+                )
+
+                VStack(spacing: 0) {
+                    hud
+                    VStack(spacing: 2) {
+                        Text("\(game.moves)")
+                            .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(game.moves <= 5 ? colors.accent : colors.ink)
+                            .contentTransition(.numericText())
+                        Text("Moves").bounceLabel(colors)
+                    }
+                    .padding(.top, 4)
+                    Spacer()
+                }
+
+                if let t = game.toast {
+                    Text(t.uppercased())
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .tracking(3)
+                        .foregroundStyle(colors.accent)
+                        .position(x: geo.size.width / 2, y: layout.origin.y - 22)
+                        .id(game.toastID)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        .allowsHitTesting(false)
+                }
+
+                if game.phase == .paused { paused }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: game.toastID)
+    }
+
+    private var hud: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Score").bounceLabel(colors)
+                Text("\(game.score)")
+                    .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(colors.ink)
+                    .contentTransition(.numericText())
+            }
+            Spacer()
+            Button {
+                game.pause()
+                Haptics.tap(.light)
+            } label: {
+                HStack(spacing: 4) {
+                    Rectangle().frame(width: 3, height: 12)
+                    Rectangle().frame(width: 3, height: 12)
+                }
+                .foregroundStyle(colors.ink.opacity(0.5))
+                .frame(width: 44, height: 32)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Pause")
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Best").bounceLabel(colors)
+                Text("\(Settings.shared.switchBest)")
+                    .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(colors.ink.opacity(0.35))
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+    }
+
+    private var paused: some View {
+        ZStack {
+            colors.background.opacity(0.9).ignoresSafeArea()
+            VStack(spacing: 26) {
+                Text("Paused")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(4)
+                    .textCase(.uppercase)
+                    .foregroundStyle(colors.ink.opacity(0.55))
+                OutlineButton(title: "Carry on", colors: colors) { game.resume() }
+                Button("End game") { game.home() }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(colors.ink.opacity(0.5))
+            }
+        }
+        .transition(.opacity)
+    }
+
+    // MARK: Drawing
+
+    private func draw(_ ctx: inout GraphicsContext, _ L: SwitchLayout) {
+        let C = L.cell
+        let gap = C * 0.1
+        let w = C * CGFloat(game.cols), h = C * CGFloat(game.rows)
+
+        // The board's faint grid of empty places.
+        var places = Path()
+        for y in 0..<game.rows {
+            for x in 0..<game.cols {
+                places.addRect(CGRect(x: L.origin.x + CGFloat(x) * C + gap / 2, y: L.origin.y + CGFloat(y) * C + gap / 2, width: C - gap, height: C - gap))
+            }
+        }
+        ctx.fill(places, with: .color(colors.ink.opacity(0.035)))
+
+        // Rows and columns just cleared, and circles just gone off.
+        for s in game.sweeps {
+            let r = s.across
+                ? CGRect(x: L.origin.x - 6, y: L.origin.y + CGFloat(s.index) * C, width: w + 12, height: C)
+                : CGRect(x: L.origin.x + CGFloat(s.index) * C, y: L.origin.y - 6, width: C, height: h + 12)
+            ctx.fill(Path(r), with: .color(colors.accent.opacity(0.3 * s.life)))
+        }
+        for b in game.blasts {
+            let c = CGPoint(x: L.origin.x + (CGFloat(b.x) + 0.5) * C, y: L.origin.y + (CGFloat(b.y) + 0.5) * C)
+            let r = C * (0.6 + 1.6 * (1 - b.life))
+            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                       with: .color(colors.accent.opacity(b.life)), lineWidth: 3 * b.life + 0.5)
+        }
+
+        // Pieces above the board are hidden until they fall in.
+        ctx.drawLayer { l in
+            l.clip(to: Path(CGRect(x: L.origin.x - 20, y: L.origin.y, width: w + 40, height: h + 40)))
+            for g in game.grid.compactMap({ $0 }) {
+                let scale = g.grow * (game.pressed != nil && game.grid[game.pressed!]?.id == g.id ? 0.86 : 1)
+                piece(&l, g, L, gap: gap, scale: scale, alpha: 1)
+            }
+            for g in game.dying {
+                piece(&l, g, L, gap: gap, scale: 1 + 0.35 * (1 - g.fade), alpha: g.fade)
+            }
+        }
+
+        for p in game.particles {
+            let x = L.origin.x + CGFloat(p.p.x) * C, y = L.origin.y + CGFloat(p.p.y) * C
+            let s = C * 0.12
+            ctx.fill(Path(CGRect(x: x, y: y, width: s, height: s)), with: .color(shadeColor(Int(p.size)).opacity(p.life)))
+        }
+    }
+
+    private func shadeColor(_ s: Int) -> Color {
+        switch s {
+        case 0: return colors.ink
+        case 1: return colors.ink.opacity(0.62)
+        case 2: return colors.ink.opacity(0.36)
+        case 3: return colors.ink.opacity(0.16)
+        default: return colors.accent
+        }
+    }
+
+    private func piece(_ ctx: inout GraphicsContext, _ g: Gem, _ L: SwitchLayout, gap: CGFloat, scale: Double, alpha: Double) {
+        let C = L.cell
+        let size = (C - gap) * CGFloat(scale)
+        let cx = L.origin.x + (CGFloat(g.x) + 0.5) * C, cy = L.origin.y + (CGFloat(g.y) + 0.5) * C
+        let r = CGRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size)
+        let color = shadeColor(g.shade).opacity(alpha)
+        let mark = colors.background.opacity(alpha)
+        switch g.power {
+        case nil:
+            ctx.fill(Path(r), with: .color(color))
+        case .row?, .column?:
+            ctx.fill(Chamfer.path(in: r), with: .color(color))
+            let len = r.width * 0.46, t = max(2, r.width * 0.07)
+            let line = g.power == .row
+                ? CGRect(x: r.midX - len / 2, y: r.midY - t / 2, width: len, height: t)
+                : CGRect(x: r.midX - t / 2, y: r.midY - len / 2, width: t, height: len)
+            ctx.fill(Path(line), with: .color(mark))
+        case .bomb?:
+            ctx.fill(Path(ellipseIn: r), with: .color(color))
+            let d = r.width * 0.2
+            ctx.fill(Path(ellipseIn: CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)), with: .color(mark))
+        case .shade?:
+            var p = Path()
+            p.move(to: CGPoint(x: r.midX, y: r.minY))
+            p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+            p.addLine(to: CGPoint(x: r.midX, y: r.maxY))
+            p.addLine(to: CGPoint(x: r.minX, y: r.midY))
+            p.closeSubpath()
+            ctx.fill(p, with: .color(color))
+            let d = r.width * 0.16
+            ctx.fill(Path(CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)), with: .color(mark))
+        }
+    }
+}
+
+/// The Switch landing page: six squares over S W I T C H, the powers, and Start.
+struct SwitchHome: View {
+    let game: SwitchGame
+    let colors: Colors
+    let onBack: () -> Void
+
+    @State private var dropped = false
+    @State private var drag: CGSize = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 0) {
+            BackBar(ink: colors.ink, action: onBack)
+            Spacer()
+            ElasticLogo(word: "SWITCH",
+                        fills: [colors.ink.opacity(0.62), colors.ink, colors.ink.opacity(0.16), colors.accent, colors.ink.opacity(0.36), colors.ink],
+                        ink: colors.ink, drag: drag, dropped: dropped)
+            rules.padding(.top, 34)
+            Spacer(minLength: 16)
+            Text(result)
+                .font(.system(size: 14).monospacedDigit())
+                .foregroundStyle(colors.ink.opacity(0.5))
+                .frame(minHeight: 20)
+            Spacer(minLength: 16)
+            Spacer(minLength: 16)
+            OutlineButton(title: game.lastScore == nil ? "Start" : "Again", colors: colors) { game.start() }
+                .padding(.bottom, 64)
+        }
+        .elasticDrag($drag)
+        .onAppear {
+            dropped = false
+            withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
+        }
+    }
+
+    private var rules: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            rule(threeMark, "Swipe to swap. Line up three of a shade")
+            rule(lineMark(across: true), "Clears its row · four across")
+            rule(lineMark(across: false), "Clears its column · four down")
+            rule(bombMark, "Clears the squares around it · an L or a T")
+            rule(diamondMark, "Clears every square of its shade · five")
+        }
+    }
+
+    private var threeMark: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3, id: \.self) { _ in Rectangle().fill(colors.accent).frame(width: 7, height: 7) }
+        }
+    }
+
+    private func lineMark(across: Bool) -> some View {
+        ZStack {
+            ChamferShape().fill(colors.ink)
+            Rectangle().fill(colors.background).frame(width: across ? 7 : 1.5, height: across ? 1.5 : 7)
+        }
+        .frame(width: 15, height: 15)
+    }
+
+    private var bombMark: some View {
+        ZStack {
+            Circle().fill(colors.ink)
+            Circle().fill(colors.background).frame(width: 3, height: 3)
+        }
+        .frame(width: 15, height: 15)
+    }
+
+    private var diamondMark: some View {
+        ZStack {
+            Rectangle().fill(colors.ink).frame(width: 11, height: 11).rotationEffect(.degrees(45))
+            Rectangle().fill(colors.background).frame(width: 2.5, height: 2.5)
+        }
+        .frame(width: 16, height: 16)
+    }
+
+    private func rule(_ mark: some View, _ text: String) -> some View {
+        HStack(spacing: 12) {
+            mark.frame(width: 26, height: 16, alignment: .leading)
+            Text(text).font(.system(size: 13)).foregroundStyle(colors.ink.opacity(0.6))
+        }
+    }
+
+    private var result: String {
+        let best = Settings.shared.switchBest
+        guard let s = game.lastScore else { return best > 0 ? "Best \(best) · 30 moves" : "30 moves" }
+        return game.newBest ? "New best · \(s)" : "\(s) · best \(best)"
+    }
+}

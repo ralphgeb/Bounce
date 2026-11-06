@@ -1,0 +1,397 @@
+import SwiftUI
+
+/// One piece on the board: a shade (four of the main colour, and the accent) and maybe a power.
+struct Gem {
+    enum Power: CaseIterable {
+        case row       // cut corners, line across: clears its row
+        case column    // cut corners, line down: clears its column
+        case bomb      // circle: clears the squares around it
+        case shade     // diamond: clears every square of its shade
+    }
+
+    let id: Int
+    var shade: Int
+    var power: Power?
+    /// Where it's drawn, in cells (it slides and falls towards its place on the grid).
+    var x: Double
+    var y: Double
+    var vy: Double = 0
+    var fade: Double = 1     // dying pieces fade from 1 to 0
+    var grow: Double = 1     // new pieces grow in
+}
+
+/// Switch: swipe a square to swap it with its neighbour; three or more of a shade in a line clear.
+/// Four in a line makes a line clearer, five a diamond, an L or a T a circle; powers also turn up
+/// on their own now and then. Thirty moves to score as much as you can.
+@MainActor
+@Observable
+final class SwitchGame {
+    enum Phase { case ready, playing, paused, over }
+
+    private enum Step {
+        case idle
+        case swapping(Int, Int, back: Bool)
+        case clearing(Double)
+        case falling
+    }
+
+    let cols = 7
+    let rows = 8
+    let shades = 5
+    let startMoves = 30
+
+    private(set) var phase: Phase = .ready
+    private(set) var score = 0
+    private(set) var moves = 30
+    private(set) var combo = 1
+    private(set) var frame = 0
+    private(set) var toast: String?
+    private(set) var toastID = 0
+    private(set) var newBest = false
+    private(set) var lastScore: Int?
+
+    @ObservationIgnored private(set) var grid: [Gem?] = []
+    @ObservationIgnored private(set) var dying: [Gem] = []
+    @ObservationIgnored private(set) var particles: [Particle] = []
+    /// Rows or columns just cleared: index, across or down, fading life.
+    @ObservationIgnored private(set) var sweeps: [(index: Int, across: Bool, life: Double)] = []
+    /// Circles just gone off: centre cell and life.
+    @ObservationIgnored private(set) var blasts: [(x: Int, y: Int, life: Double)] = []
+    @ObservationIgnored var pressed: Int?
+
+    @ObservationIgnored private var step: Step = .idle
+    @ObservationIgnored private var nextID = 0
+    private let ticker = FrameTicker()
+    @ObservationIgnored private var toastTask: Task<Void, Never>?
+
+    init() {
+        ticker.onTick = { [weak self] dt in
+            MainActor.assumeIsolated { self?.tick(dt) }
+        }
+        fill()
+    }
+
+    var busy: Bool { if case .idle = step { return false } else { return true } }
+
+    // MARK: Phases
+
+    func start() {
+        score = 0; moves = startMoves; combo = 1; newBest = false
+        dying = []; particles = []; sweeps = []; blasts = []
+        fill()
+        // Drop the whole board in from above.
+        for i in grid.indices { grid[i]?.y -= Double(rows) + 1 }
+        step = .falling
+        phase = .playing
+        ticker.start()
+    }
+
+    func pause() { if phase == .playing { phase = .paused } }
+    func resume() { if phase == .paused { phase = .playing } }
+
+    func home() {
+        if phase != .ready { lastScore = score }
+        phase = .ready
+        ticker.stop()
+    }
+
+    private func finish() {
+        phase = .over
+        lastScore = score
+        let s = Settings.shared
+        if score > s.switchBest { s.switchBest = score; newBest = score > 0 }
+        Haptics.notify(.success)
+        ticker.stop()
+        phase = .ready
+    }
+
+    // MARK: Board
+
+    private func idx(_ x: Int, _ y: Int) -> Int { y * cols + x }
+
+    private func newGem(x: Int, y: Double, shade: Int, power: Gem.Power? = nil) -> Gem {
+        nextID += 1
+        return Gem(id: nextID, shade: shade, power: power, x: Double(x), y: y)
+    }
+
+    /// A fresh board with no lines already made and at least one move.
+    private func fill() {
+        repeat {
+            grid = Array(repeating: nil, count: cols * rows)
+            for y in 0..<rows {
+                for x in 0..<cols {
+                    var s: Int
+                    repeat {
+                        s = Int.random(in: 0..<shades)
+                    } while (x >= 2 && grid[idx(x - 1, y)]?.shade == s && grid[idx(x - 2, y)]?.shade == s)
+                        || (y >= 2 && grid[idx(x, y - 1)]?.shade == s && grid[idx(x, y - 2)]?.shade == s)
+                    grid[idx(x, y)] = newGem(x: x, y: Double(y), shade: s)
+                }
+            }
+        } while !hasMove()
+    }
+
+    private struct Run { var cells: [Int]; var across: Bool }
+
+    private func runs(_ shadeAt: (Int) -> Int?) -> [Run] {
+        var out: [Run] = []
+        for y in 0..<rows {
+            var x = 0
+            while x < cols {
+                guard let s = shadeAt(idx(x, y)) else { x += 1; continue }
+                var e = x + 1
+                while e < cols, shadeAt(idx(e, y)) == s { e += 1 }
+                if e - x >= 3 { out.append(Run(cells: (x..<e).map { idx($0, y) }, across: true)) }
+                x = e
+            }
+        }
+        for x in 0..<cols {
+            var y = 0
+            while y < rows {
+                guard let s = shadeAt(idx(x, y)) else { y += 1; continue }
+                var e = y + 1
+                while e < rows, shadeAt(idx(x, e)) == s { e += 1 }
+                if e - y >= 3 { out.append(Run(cells: (y..<e).map { idx(x, $0) }, across: false)) }
+                y = e
+            }
+        }
+        return out
+    }
+
+    private func currentRuns() -> [Run] { runs { self.grid[$0]?.shade } }
+
+    private func hasMove() -> Bool {
+        var shadesNow = grid.map { $0?.shade }
+        for y in 0..<rows {
+            for x in 0..<cols {
+                for (dx, dy) in [(1, 0), (0, 1)] {
+                    let nx = x + dx, ny = y + dy
+                    guard nx < cols, ny < rows else { continue }
+                    let a = idx(x, y), b = idx(nx, ny)
+                    shadesNow.swapAt(a, b)
+                    let found = !runs { shadesNow[$0] }.isEmpty
+                    shadesNow.swapAt(a, b)
+                    if found { return true }
+                }
+            }
+        }
+        return false
+    }
+
+    // MARK: Moves
+
+    /// Swipe from a cell in a direction: swap with that neighbour.
+    func swipe(from cell: Int, dx: Int, dy: Int) {
+        guard phase == .playing, !busy, moves > 0 else { return }
+        let x = cell % cols + dx, y = cell / cols + dy
+        guard x >= 0, y >= 0, x < cols, y < rows else { return }
+        let other = idx(x, y)
+        grid.swapAt(cell, other)
+        step = .swapping(cell, other, back: false)
+        Haptics.tap(.light, intensity: 0.5)
+    }
+
+    private func afterSwap(_ a: Int, _ b: Int, back: Bool) {
+        if back { step = .idle; return }
+        let found = currentRuns()
+        if found.isEmpty {
+            // No line: swap back.
+            grid.swapAt(a, b)
+            step = .swapping(a, b, back: true)
+            Haptics.tap(.soft, intensity: 0.4)
+            return
+        }
+        moves -= 1
+        combo = 1
+        resolve(found, focus: [b, a])
+    }
+
+    /// Clear the lines, make new powers, and set off any powers caught up in it.
+    private func resolve(_ found: [Run], focus: [Int]) {
+        var clear = Set(found.flatMap(\.cells))
+        var make: [(cell: Int, power: Gem.Power)] = []
+
+        // A cell in a line across and a line down (an L or a T) becomes a circle.
+        var across = Set<Int>(), down = Set<Int>()
+        for r in found { if r.across { across.formUnion(r.cells) } else { down.formUnion(r.cells) } }
+        let corners = across.intersection(down)
+        for c in corners { make.append((c, .bomb)) }
+
+        for r in found where r.cells.count >= 4 && corners.isDisjoint(with: r.cells) {
+            let at = focus.first(where: { r.cells.contains($0) }) ?? r.cells[r.cells.count / 2]
+            make.append((at, r.cells.count >= 5 ? .shade : (r.across ? .row : .column)))
+        }
+        // Don't overwrite a power that's about to go off.
+        make.removeAll { grid[$0.cell]?.power != nil }
+        for m in make { clear.remove(m.cell) }
+
+        // Powers in the cleared cells go off, and so do any they reach.
+        var queue = clear.filter { grid[$0]?.power != nil }
+        var done = Set<Int>()
+        var sound = false
+        while let c = queue.popFirst() {
+            guard !done.contains(c), let g = grid[c], let p = g.power else { continue }
+            done.insert(c)
+            let cx = c % cols, cy = c / cols
+            var reach: [Int] = []
+            switch p {
+            case .row:
+                reach = (0..<cols).map { idx($0, cy) }
+                sweeps.append((cy, true, 1))
+            case .column:
+                reach = (0..<rows).map { idx(cx, $0) }
+                sweeps.append((cx, false, 1))
+            case .bomb:
+                for y in max(0, cy - 1)...min(rows - 1, cy + 1) {
+                    for x in max(0, cx - 1)...min(cols - 1, cx + 1) { reach.append(idx(x, y)) }
+                }
+                blasts.append((cx, cy, 1))
+            case .shade:
+                reach = grid.indices.filter { grid[$0]?.shade == g.shade }
+                blasts.append((cx, cy, 1))
+            }
+            sound = true
+            for r in reach where !clear.contains(r) && !make.contains(where: { $0.cell == r }) {
+                clear.insert(r)
+                if grid[r]?.power != nil { queue.insert(r) }
+            }
+        }
+
+        score += clear.count * 10 * combo
+        for c in clear {
+            guard var g = grid[c] else { continue }
+            burst(g)
+            g.fade = 1
+            dying.append(g)
+            grid[c] = nil
+        }
+        for m in make {
+            grid[m.cell]?.power = m.power
+            grid[m.cell]?.grow = 0.4
+        }
+        if sound { Haptics.tap(.heavy) } else { Haptics.tap(.rigid, intensity: 0.6) }
+        if combo >= 2 { show("×\(combo)") }
+        step = .clearing(0.2)
+    }
+
+    /// Everything falls into the gaps; new pieces drop in from the top.
+    private func collapse() {
+        for x in 0..<cols {
+            var write = rows - 1
+            for y in stride(from: rows - 1, through: 0, by: -1) {
+                if let g = grid[idx(x, y)] {
+                    if write != y { grid[idx(x, write)] = g; grid[idx(x, y)] = nil }
+                    write -= 1
+                }
+            }
+            var k = 0
+            while write >= 0 {
+                k += 1
+                // Now and then a power turns up on its own.
+                let roll = Double.random(in: 0..<1)
+                let power: Gem.Power? = roll < 0.012 ? .row : roll < 0.024 ? .column : roll < 0.033 ? .bomb : roll < 0.037 ? .shade : nil
+                grid[idx(x, write)] = newGem(x: x, y: -Double(k), shade: Int.random(in: 0..<shades), power: power)
+                write -= 1
+            }
+        }
+        step = .falling
+    }
+
+    private func settled() {
+        let found = currentRuns()
+        if !found.isEmpty {
+            combo += 1
+            resolve(found, focus: [])
+            return
+        }
+        combo = 1
+        step = .idle
+        if moves <= 0 { finish(); return }
+        if !hasMove() {
+            show("Shuffle")
+            repeat {
+                for i in grid.indices { grid[i]?.shade = Int.random(in: 0..<shades) }
+            } while !currentRuns().isEmpty || !hasMove()
+        }
+    }
+
+    private func show(_ text: String) {
+        toast = text; toastID += 1
+        let id = toastID
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.0))
+            guard let self, self.toastID == id else { return }
+            self.toast = nil
+        }
+    }
+
+    private func burst(_ g: Gem) {
+        for _ in 0..<5 {
+            particles.append(Particle(p: CGPoint(x: g.x + .random(in: 0.1...0.9), y: g.y + .random(in: 0.1...0.9)),
+                                      v: CGVector(dx: .random(in: -2.5...2.5), dy: .random(in: -3.5...1)),
+                                      life: 1, size: CGFloat(g.shade)))
+        }
+    }
+
+    // MARK: Loop
+
+    private func tick(_ dt: Double) {
+        guard phase == .playing else { return }
+        var moving = false
+        for i in grid.indices {
+            guard var g = grid[i] else { continue }
+            let tx = Double(i % cols), ty = Double(i / cols)
+            // Sideways and upward moves slide; falling accelerates.
+            if g.x != tx {
+                let d = tx - g.x, s = 9 * dt
+                g.x = abs(d) <= s ? tx : g.x + (d > 0 ? s : -s)
+                moving = true
+            }
+            if g.y < ty {
+                g.vy = min(22, g.vy + 60 * dt)
+                g.y = min(ty, g.y + g.vy * dt)
+                if g.y >= ty { g.vy = 0 }
+                moving = true
+            } else if g.y > ty {
+                let s = 9 * dt
+                g.y = g.y - ty <= s ? ty : g.y - s
+                moving = true
+            }
+            if g.grow < 1 { g.grow = min(1, g.grow + dt * 5) }
+            grid[i] = g
+        }
+        for i in dying.indices.reversed() {
+            dying[i].fade -= dt * 5
+            if dying[i].fade <= 0 { dying.remove(at: i) }
+        }
+        for i in particles.indices.reversed() {
+            particles[i].life -= dt * 2.2
+            if particles[i].life <= 0 { particles.remove(at: i); continue }
+            particles[i].p.x += particles[i].v.dx * dt
+            particles[i].p.y += particles[i].v.dy * dt
+            particles[i].v.dy += 9 * dt
+        }
+        for i in sweeps.indices.reversed() {
+            sweeps[i].life -= dt * 3
+            if sweeps[i].life <= 0 { sweeps.remove(at: i) }
+        }
+        for i in blasts.indices.reversed() {
+            blasts[i].life -= dt * 2.5
+            if blasts[i].life <= 0 { blasts.remove(at: i) }
+        }
+
+        switch step {
+        case .idle:
+            break
+        case let .swapping(a, b, back: back):
+            if !moving { afterSwap(a, b, back: back) }
+        case let .clearing(t):
+            let left = t - dt
+            if left <= 0 { collapse() } else { step = .clearing(left) }
+        case .falling:
+            if !moving { settled() }
+        }
+        frame &+= 1
+    }
+}
