@@ -546,12 +546,17 @@ final class Game {
         return out
     }
 
+    private static let bounceOdds: [(Block.Kind, Double)] = [
+        (.split, 0.02), (.row, 0.025), (.column, 0.025), (.blaster, 0.01), (.bomb, 1.0 / 150),
+    ]
+    private static let hideOdds: [(Block.Kind, Double)] = [
+        (.flare, 1.0 / 22), (.split, 1.0 / 30), (.row, 1.0 / 30), (.column, 1.0 / 30), (.blaster, 1.0 / 60), (.bomb, 1.0 / 140),
+    ]
+
     private static func randomKind(hide: Bool = false) -> Block.Kind {
         let r = Double.random(in: 0..<1)
         // Hide's boards are small, so its specials come a little more often, and it has the flare.
-        let odds: [(Block.Kind, Double)] = hide
-            ? [(.flare, 1.0 / 22), (.split, 1.0 / 30), (.row, 1.0 / 30), (.column, 1.0 / 30), (.blaster, 1.0 / 60), (.bomb, 1.0 / 140)]
-            : [(.split, 1.0 / 50), (.row, 1.0 / 40), (.column, 1.0 / 40), (.blaster, 1.0 / 100), (.bomb, 1.0 / 150)]
+        let odds = hide ? hideOdds : bounceOdds
         var sum = 0.0
         for (kind, p) in odds {
             sum += p
