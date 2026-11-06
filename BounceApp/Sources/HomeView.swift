@@ -68,25 +68,48 @@ struct HomeView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    /// The four special squares, drawn as they look in the game.
     private var rules: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            rule(Rectangle().fill(colors.accent), "Accent square splits the ball in three")
-            rule(blasterMark, "Outlined square: shoot for 5 seconds")
-            rule(Rectangle().fill(colors.ink), "Score multiplier: skip the paddle for ×2, ×3")
-            rule(Rectangle().fill(colors.ink.opacity(0.4)), "Break 20 in a row for an extra life")
+        VStack(alignment: .leading, spacing: 12) {
+            rule(Rectangle().fill(colors.accent).frame(width: 16, height: 16), "Splits the ball in three")
+            rule(blasterMark.frame(width: 16, height: 16), "Shoots from the paddle for 5 seconds")
+            rule(lineMark, "Clears its row, or its column")
+            rule(bombMark.frame(width: 16, height: 16), "Clears every square on the screen")
         }
     }
 
     private var blasterMark: some View {
         ZStack {
             Rectangle().strokeBorder(colors.accent, lineWidth: 1.5)
-            Rectangle().fill(colors.accent).frame(width: 4, height: 4)
+            Rectangle().fill(colors.accent).padding(3)
+        }
+    }
+
+    private var lineMark: some View {
+        HStack(spacing: 4) {
+            ZStack {
+                ChamferShape().fill(colors.ink)
+                Rectangle().fill(colors.background).frame(width: 7, height: 1.5)
+            }
+            .frame(width: 16, height: 16)
+            ZStack {
+                ChamferShape().fill(colors.ink)
+                Rectangle().fill(colors.background).frame(width: 1.5, height: 7)
+            }
+            .frame(width: 16, height: 16)
+        }
+    }
+
+    private var bombMark: some View {
+        ZStack {
+            Circle().fill(colors.ink)
+            Circle().fill(colors.accent).padding(5)
         }
     }
 
     private func rule(_ mark: some View, _ text: String) -> some View {
-        HStack(spacing: 10) {
-            mark.frame(width: 12, height: 12)
+        HStack(spacing: 12) {
+            mark.frame(width: 36, height: 16, alignment: .leading)
             Text(text).font(.system(size: 13)).foregroundStyle(colors.ink.opacity(0.6))
         }
     }

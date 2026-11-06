@@ -1,14 +1,21 @@
 import SwiftUI
 import QuartzCore
 
-/// One square in the wall. Tougher squares (2 or 3 hits) are darker; accent squares split the ball;
-/// outlined squares (blasters) make the paddle shoot for five seconds.
+/// One square in the wall. Plain squares take 1 to 3 hits (darker is tougher); the special ones break in one.
 struct Block {
+    enum Kind {
+        case plain
+        case split      // accent square: the ball splits in three
+        case blaster    // accent outline: the paddle shoots for five seconds
+        case row        // chamfered, line across: clears its row
+        case column     // chamfered, line down: clears its column
+        case bomb       // big circle: clears every square on the screen
+    }
+
     var rect: CGRect
     var hp: Int
     var max: Int
-    var split: Bool
-    var blaster: Bool = false
+    var kind: Kind = .plain
     var hit: Double = 0      // flash when struck, fades out
     var age: Double = 0      // fades in when the row arrives
 }
@@ -59,6 +66,8 @@ final class Game {
     @ObservationIgnored private(set) var particles: [Particle] = []
     @ObservationIgnored private(set) var flash: Double = 0
     @ObservationIgnored private(set) var bullets: [CGPoint] = []
+    /// Rows and columns just cleared, drawn as a fading accent band.
+    @ObservationIgnored private(set) var sweeps: [(rect: CGRect, life: Double)] = []
     /// Seconds of shooting left (from a blaster square).
     @ObservationIgnored private(set) var shootLeft: Double = 0
     @ObservationIgnored private var shotClock: Double = 0
@@ -121,7 +130,7 @@ final class Game {
 
     private func reset() {
         elapsed = 0; score = 0; lives = 3; run = 0; freshLife = false; newBest = false
-        particles = []; flash = 0; bullets = []; shootLeft = 0
+        particles = []; flash = 0; bullets = []; shootLeft = 0; sweeps = []
         paddleX = size.width / 2
         blocks = []
         for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH) }
@@ -180,14 +189,12 @@ final class Game {
         for c in 0..<cols where !skip.contains(c) {
             let roll = Double.random(in: 0..<1)
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
-            // About one square in 30 is an accent square: break it and the ball splits in three.
-            // About one in 35 is a blaster: break it and the paddle shoots for five seconds.
-            let roll2 = Double.random(in: 0..<1)
-            let split = roll2 < 0.034
-            let blaster = !split && roll2 < 0.034 + 0.029
-            if split || blaster { hp = 1 }
+            // Special squares, at random, roughly: a split every 50 squares, a row or column clearer
+            // every 50, a blaster every 200 and a screen-clearing circle every 400.
+            let k = Self.randomKind()
+            if k != .plain { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
-            row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, split: split, blaster: blaster))
+            row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, kind: k))
         }
         return row
     }
@@ -234,10 +241,14 @@ final class Game {
             i -= 1
         }
         if flash > 0 { flash = max(0, flash - dt * 2.5) }
+        for j in sweeps.indices.reversed() {
+            sweeps[j].life -= dt * 3
+            if sweeps[j].life <= 0 { sweeps.remove(at: j) }
+        }
     }
 
-    private func burst(_ b: Block) {
-        for _ in 0..<10 {
+    private func burst(_ b: Block, count: Int = 10) {
+        for _ in 0..<count {
             particles.append(Particle(
                 p: CGPoint(x: b.rect.minX + .random(in: 0...b.rect.width), y: b.rect.minY + .random(in: 0...b.rect.height)),
                 v: CGVector(dx: .random(in: -80...80), dy: .random(in: -120...40)),
@@ -385,7 +396,7 @@ final class Game {
             return
         }
         let b = blocks.remove(at: i)
-        burst(b)
+        burst(b, count: 10)
         score += b.max * chain
         Haptics.tap(.rigid, intensity: 0.5)
         if ball != nil {
@@ -398,13 +409,64 @@ final class Game {
                 Haptics.notify(.success)
             }
         }
-        if b.split, let src = ball ?? balls.first(where: { !$0.stuck }) { split(from: src) }
-        if b.blaster {
-            shootLeft = shootTime
-            shotClock = 0
-            show("Blaster")
-            Haptics.notify(.success)
+        trigger(b, ball: ball)
+    }
+
+    /// What a special square does when it breaks. Specials caught in a clear go off too.
+    private func trigger(_ first: Block, ball: Ball?) {
+        var queue = [first]
+        while let b = queue.popLast() {
+            var cleared: [Block] = []
+            switch b.kind {
+            case .plain:
+                break
+            case .split:
+                if let src = ball ?? balls.first(where: { !$0.stuck }) { split(from: src) }
+            case .blaster:
+                shootLeft = shootTime
+                shotClock = 0
+                show("Blaster")
+                Haptics.notify(.success)
+            case .row:
+                let band = CGRect(x: 0, y: b.rect.minY, width: size.width, height: b.rect.height)
+                cleared = take { abs($0.rect.midY - b.rect.midY) < cell / 2 }
+                sweeps.append((band, 1))
+                Haptics.tap(.heavy)
+            case .column:
+                let band = CGRect(x: b.rect.minX, y: top - 30, width: b.rect.width, height: dangerY - top + 30)
+                cleared = take { abs($0.rect.midX - b.rect.midX) < cell / 2 }
+                sweeps.append((band, 1))
+                Haptics.tap(.heavy)
+            case .bomb:
+                cleared = take { _ in true }
+                flash = 1
+                show("Clear")
+                Haptics.notify(.success)
+            }
+            for c in cleared {
+                score += c.max * chain
+                burst(c, count: cleared.count > 20 ? 3 : 6)
+                if c.kind != .plain { queue.append(c) }
+            }
         }
+    }
+
+    /// Removes and returns every block that matches.
+    private func take(_ match: (Block) -> Bool) -> [Block] {
+        let out = blocks.filter(match)
+        blocks.removeAll(where: match)
+        return out
+    }
+
+    private static func randomKind() -> Block.Kind {
+        let r = Double.random(in: 0..<1)
+        let odds: [(Block.Kind, Double)] = [(.split, 1.0 / 50), (.row, 1.0 / 100), (.column, 1.0 / 100), (.blaster, 1.0 / 200), (.bomb, 1.0 / 400)]
+        var sum = 0.0
+        for (kind, p) in odds {
+            sum += p
+            if r < sum { return kind }
+        }
+        return .plain
     }
 
     private func split(from src: Ball) {

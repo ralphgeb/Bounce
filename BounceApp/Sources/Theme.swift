@@ -20,7 +20,7 @@ struct Palette: Hashable {
     let background: RGB
 }
 
-/// A look: the same presets as Halo and Scout. Each has its own app icon.
+/// A look: five of the presets from Halo and Scout. Each has its own app icon.
 struct Look: Identifiable, Hashable {
     let id: String
     let name: String
@@ -47,12 +47,6 @@ struct Look: Identifiable, Hashable {
         Look(id: "forest", name: "Forest",
              light: .init(ink: RGB(0x1C3324), background: RGB(0xF5F7F3)),
              dark: .init(ink: RGB(0xE5EFE6), background: RGB(0x08100B)), accent: RGB(0xE8B04A)),
-        Look(id: "dusk", name: "Dusk",
-             light: .init(ink: RGB(0x2B2540), background: RGB(0xF7F6FA)),
-             dark: .init(ink: RGB(0xECE9F6), background: RGB(0x0D0B14)), accent: RGB(0xFF8A65)),
-        Look(id: "mono", name: "Mono",
-             light: .init(ink: RGB(0x000000), background: RGB(0xFFFFFF)),
-             dark: .init(ink: RGB(0xFFFFFF), background: RGB(0x000000)), accent: RGB(0xE5484D)),
     ]
 }
 

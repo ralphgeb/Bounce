@@ -6,42 +6,56 @@ struct SettingsView: View {
     let colors: Colors
     @State private var settings = Settings.shared
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("iconFollowsLook") private var iconFollowsLook = true
+    @AppStorage("iconFollowsLook") private var iconFollowsLook = false
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Look") {
-                    ForEach(Look.all) { look in
-                        Button {
-                            settings.lookID = look.id
-                            Haptics.tap(.light)
-                            if iconFollowsLook { setIcon(look) }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Rectangle()
-                                    .fill(look.accent.color)
-                                    .frame(width: 24, height: 24)
-                                Text(look.name).foregroundStyle(colors.ink)
-                                Spacer()
-                                if look.id == settings.lookID {
-                                    Image(systemName: "checkmark").font(.system(size: 14, weight: .semibold)).foregroundStyle(colors.accent)
-                                }
-                            }
-                        }
-                    }
-                    Toggle("App icon follows the look", isOn: $iconFollowsLook)
-                        .tint(colors.accent)
-                        .onChange(of: iconFollowsLook) { _, on in if on { setIcon(settings.look) } }
-                }
-                .listRowBackground(colors.ink.opacity(0.04))
-
                 Section("Appearance") {
                     Picker("Appearance", selection: $settings.mode) {
                         ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section {
+                    // The five looks as one line of accent squares; the chosen one is outlined.
+                    HStack(spacing: 0) {
+                        ForEach(Look.all) { look in
+                            Button {
+                                settings.lookID = look.id
+                                Haptics.tap(.light)
+                                if iconFollowsLook { setIcon(look) }
+                            } label: {
+                                Rectangle()
+                                    .fill(look.accent.color)
+                                    .frame(width: 30, height: 30)
+                                    .padding(5)
+                                    .overlay(
+                                        Rectangle()
+                                            .strokeBorder(colors.ink, lineWidth: 1.5)
+                                            .opacity(look.id == settings.lookID ? 1 : 0)
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(look.name)
+                            .accessibilityAddTraits(look.id == settings.lookID ? .isSelected : [])
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    Toggle("App icon follows the look", isOn: $iconFollowsLook)
+                        .tint(colors.accent)
+                        .onChange(of: iconFollowsLook) { _, on in setIcon(on ? settings.look : Look.all[0]) }
+                } header: {
+                    Text("Look · \(settings.look.name)")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section {
                     Toggle("Haptics", isOn: $settings.haptics).tint(colors.accent)
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
