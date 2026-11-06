@@ -162,8 +162,8 @@ struct GameView: View {
                 ctx.stroke(Path(r.insetBy(dx: line / 2, dy: line / 2)), with: .color(accent.opacity(o)), lineWidth: line)
                 ctx.fill(Path(r.insetBy(dx: line * 2, dy: line * 2)), with: .color(accent.opacity(o)))
             case .row, .column:
-                // Chamfered square with a short line in the middle: across for a row, down for a column.
-                ctx.fill(Chamfer.path(in: r), with: .color(ink.opacity(o)))
+                // Accent square with cut corners and a short line in the middle: across for a row, down for a column.
+                ctx.fill(Chamfer.path(in: r), with: .color(accent.opacity(o)))
                 let len = r.width * 0.44, t: CGFloat = 2.5
                 let mark = b.kind == .row
                     ? CGRect(x: r.midX - len / 2, y: r.midY - t / 2, width: len, height: t)
@@ -171,8 +171,7 @@ struct GameView: View {
                 ctx.fill(Path(mark), with: .color(colors.background.opacity(o)))
             case .bomb:
                 // A big circle, as wide as a square: clears the screen.
-                ctx.fill(Path(ellipseIn: r), with: .color(ink.opacity(o)))
-                ctx.fill(Path(ellipseIn: r.insetBy(dx: r.width * 0.36, dy: r.width * 0.36)), with: .color(accent.opacity(o)))
+                ctx.fill(Path(ellipseIn: r), with: .color(accent.opacity(o)))
             }
             if b.hit > 0 { ctx.fill(path, with: .color(accent.opacity(b.hit * 0.7))) }
         }
@@ -219,7 +218,7 @@ struct GameView: View {
 /// A square with small cut corners: the row and column clearers.
 enum Chamfer {
     static func path(in r: CGRect, cut: CGFloat? = nil) -> Path {
-        let c = cut ?? r.width * 0.16
+        let c = cut ?? r.width * 0.24
         var p = Path()
         p.move(to: CGPoint(x: r.minX + c, y: r.minY))
         p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))

@@ -28,12 +28,14 @@ struct HomeView: View {
             Spacer()
             logo
             rules.padding(.top, 34)
+            // The last score sits a third of the way from the rules down to the button.
+            Spacer(minLength: 16)
             Text(result)
                 .font(.system(size: 14).monospacedDigit())
                 .foregroundStyle(colors.ink.opacity(0.5))
                 .frame(minHeight: 20)
-                .padding(.top, 30)
-            Spacer()
+            Spacer(minLength: 16)
+            Spacer(minLength: 16)
             // Low on the screen, where the thumb is.
             OutlineButton(title: game.phase == .over ? "Again" : "Start", colors: colors) { game.start() }
                 .padding(.bottom, 64)
@@ -68,12 +70,13 @@ struct HomeView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    /// The four special squares, drawn as they look in the game.
+    /// The special squares, drawn as they look in the game.
     private var rules: some View {
         VStack(alignment: .leading, spacing: 12) {
             rule(Rectangle().fill(colors.accent).frame(width: 16, height: 16), "Splits the ball in three")
-            rule(blasterMark.frame(width: 16, height: 16), "Shoots from the paddle for 5 seconds")
-            rule(lineMark, "Clears its row, or its column")
+            rule(lineMark(across: true).frame(width: 16, height: 16), "Clears its row")
+            rule(lineMark(across: false).frame(width: 16, height: 16), "Clears its column")
+            rule(blasterMark.frame(width: 16, height: 16), "Shoots from the paddle for 3 seconds")
             rule(bombMark.frame(width: 16, height: 16), "Clears every square on the screen")
         }
     }
@@ -85,26 +88,15 @@ struct HomeView: View {
         }
     }
 
-    private var lineMark: some View {
-        HStack(spacing: 4) {
-            ZStack {
-                ChamferShape().fill(colors.ink)
-                Rectangle().fill(colors.background).frame(width: 7, height: 1.5)
-            }
-            .frame(width: 16, height: 16)
-            ZStack {
-                ChamferShape().fill(colors.ink)
-                Rectangle().fill(colors.background).frame(width: 1.5, height: 7)
-            }
-            .frame(width: 16, height: 16)
+    private func lineMark(across: Bool) -> some View {
+        ZStack {
+            ChamferShape().fill(colors.accent)
+            Rectangle().fill(colors.background).frame(width: across ? 7 : 1.5, height: across ? 1.5 : 7)
         }
     }
 
     private var bombMark: some View {
-        ZStack {
-            Circle().fill(colors.ink)
-            Circle().fill(colors.accent).padding(5)
-        }
+        Circle().fill(colors.accent)
     }
 
     private func rule(_ mark: some View, _ text: String) -> some View {

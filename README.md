@@ -4,11 +4,11 @@ A minimal block breaker for iPhone, in the same style as Halo and Scout: the sam
 
 - **The game**: move the paddle with your finger, keep the ball up, and break the wall of squares that keeps drifting down. New rows keep coming, so a game lasts as long as you do; the ball, the wall and the tougher squares all speed up over time.
 - **Squares**: plain squares in nine columns, with the same gap across and down. Pale squares take one hit, mid-tone two, solid three.
-- **Special squares** (all break in one hit; they turn up at random, roughly):
-  - **Accent square** (every 50 or so): splits the ball in three.
-  - **Row and column clearers** (every 50 or so, either one): squares with small cut corners and a short line in the middle, across for a row, down for a column. Breaking one clears its whole row or column.
-  - **Blaster** (every 200 or so): an accent outline around a big accent square. The paddle shoots from both ends for 5 seconds; a thin accent line under the paddle shows the time left.
-  - **Circle** (every 400 or so): a big circle, as wide as a square, that clears every square on the screen.
+- **Special squares**, all in the accent colour, break in one hit and turn up at random, roughly:
+  - **Row and column clearers** (every 20 or so, either one): squares with cut corners and a short line in the middle, across for a row, down for a column. Breaking one clears its whole row or column.
+  - **Split square** (every 50 or so): a plain square; splits the ball in three.
+  - **Blaster** (every 100 or so): an outline around a big inner square. The paddle shoots from both ends for 3 seconds; a thin line under the paddle shows the time left.
+  - **Circle** (every 150 or so): a big circle, as wide as a square, that clears every square on the screen.
   - Special squares caught in a clear go off too.
 - **Score multiplier**: every block the ball breaks before it comes back to the paddle raises it (×2, ×3, up to ×9). Twenty in a row earns an extra life (at most 5; +50 points when you're full).
 - **Lives**: three to start. You lose one when your last ball falls, or when the wall reaches the line above your paddle (that also knocks the bottom three rows away).

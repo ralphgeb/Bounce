@@ -6,7 +6,7 @@ struct Block {
     enum Kind {
         case plain
         case split      // accent square: the ball splits in three
-        case blaster    // accent outline: the paddle shoots for five seconds
+        case blaster    // accent outline: the paddle shoots for three seconds
         case row        // chamfered, line across: clears its row
         case column     // chamfered, line down: clears its column
         case bomb       // big circle: clears every square on the screen
@@ -72,7 +72,7 @@ final class Game {
     @ObservationIgnored private(set) var shootLeft: Double = 0
     @ObservationIgnored private var shotClock: Double = 0
     @ObservationIgnored var targetX: CGFloat?
-    let shootTime: Double = 5
+    let shootTime: Double = 3
 
     let cols = 9
     let gap: CGFloat = 5
@@ -189,8 +189,8 @@ final class Game {
         for c in 0..<cols where !skip.contains(c) {
             let roll = Double.random(in: 0..<1)
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
-            // Special squares, at random, roughly: a split every 50 squares, a row or column clearer
-            // every 50, a blaster every 200 and a screen-clearing circle every 400.
+            // Special squares, at random, roughly: a row or column clearer every 20 squares, a split
+            // every 50, a blaster every 100 and a screen-clearing circle every 150.
             let k = Self.randomKind()
             if k != .plain { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
@@ -460,7 +460,7 @@ final class Game {
 
     private static func randomKind() -> Block.Kind {
         let r = Double.random(in: 0..<1)
-        let odds: [(Block.Kind, Double)] = [(.split, 1.0 / 50), (.row, 1.0 / 100), (.column, 1.0 / 100), (.blaster, 1.0 / 200), (.bomb, 1.0 / 400)]
+        let odds: [(Block.Kind, Double)] = [(.split, 1.0 / 50), (.row, 1.0 / 40), (.column, 1.0 / 40), (.blaster, 1.0 / 100), (.bomb, 1.0 / 150)]
         var sum = 0.0
         for (kind, p) in odds {
             sum += p
