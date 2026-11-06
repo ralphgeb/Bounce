@@ -95,6 +95,7 @@ struct SwitchView: View {
                 }
 
                 if game.phase == .paused { paused }
+                CoachOverlay(coach: game.coach, colors: colors)
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: game.toastID)
@@ -254,8 +255,27 @@ struct SwitchView: View {
             p.addLine(to: CGPoint(x: r.minX, y: r.midY))
             p.closeSubpath()
             ctx.fill(p, with: .color(color))
-            let d = r.width * 0.16
-            ctx.fill(Path(CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)), with: .color(mark))
+            // The shine: a bright band sweeping across, then a pause, over and over.
+            let phase = (game.clock * 0.55 + Double(g.id % 5) * 0.13).truncatingRemainder(dividingBy: 1)
+            if phase < 0.45 {
+                let k = CGFloat(phase / 0.45)
+                let bx = r.minX - r.width * 0.4 + (r.width * 1.8) * k
+                var band = Path()
+                band.move(to: CGPoint(x: bx, y: r.minY))
+                band.addLine(to: CGPoint(x: bx + r.width * 0.22, y: r.minY))
+                band.addLine(to: CGPoint(x: bx - r.width * 0.18, y: r.maxY))
+                band.addLine(to: CGPoint(x: bx - r.width * 0.4, y: r.maxY))
+                band.closeSubpath()
+                ctx.drawLayer { l in
+                    l.clip(to: p)
+                    l.fill(band, with: .color(Color.white.opacity(0.55 * alpha)))
+                }
+            }
+            // A small sparkle at the top.
+            let tw = 0.5 + 0.5 * sin(game.clock * 4 + Double(g.id))
+            let sp = r.width * 0.09 * CGFloat(tw)
+            ctx.fill(Path(ellipseIn: CGRect(x: r.midX - sp, y: r.minY + r.height * 0.2 - sp, width: sp * 2, height: sp * 2)),
+                     with: .color(Color.white.opacity(0.8 * alpha * tw)))
         }
     }
 }
@@ -302,7 +322,7 @@ struct SwitchHome: View {
             rule(lineMark(across: true), "Four across: clears its row")
             rule(lineMark(across: false), "Four down: clears its column")
             rule(bombMark, "Five in a line: clears the squares around it")
-            rule(diamondMark, "Two lines at once: clears every square of its shade")
+            rule(diamondMark, "A T or an L: clears every square of its shade")
         }
     }
 

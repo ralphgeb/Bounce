@@ -20,6 +20,14 @@ enum MazeRenderer {
         var showPlayer = true
         var revealWalls = false
         var lightStrength: Double = 1
+        /// The map: 0 = normal, 1 = zoomed out over the whole maze, showing the walls you've lit.
+        var map: Double = 0
+        var seen: Set<Int> = []
+        /// Where the view is centred (the player, or the middle of the maze on the map).
+        var camera: CGPoint? = nil
+        /// New dots: how many, and seconds since.
+        var dotGain = 0
+        var dotGainAge: Double = 9
     }
 
     static func draw(_ ctx: inout GraphicsContext, size: CGSize, scene s: Scene, colors c: Colors) {
@@ -27,9 +35,11 @@ enum MazeRenderer {
         let full = CGRect(origin: .zero, size: size)
         ctx.fill(Path(full), with: .color(c.background))
 
-        let me = CGPoint(x: size.width / 2, y: size.height / 2)
-        let origin = CGPoint(x: me.x - s.pos.x * T, y: me.y - s.pos.y * T)
+        let cam = s.camera ?? s.pos
+        let mid = CGPoint(x: size.width / 2, y: size.height / 2)
+        let origin = CGPoint(x: mid.x - cam.x * T, y: mid.y - cam.y * T)
         func screen(_ p: CGPoint) -> CGPoint { CGPoint(x: origin.x + p.x * T, y: origin.y + p.y * T) }
+        let me = screen(s.pos)
         let gap = max(2, T * 0.07)
         func tileRect(_ x: Int, _ y: Int) -> CGRect {
             CGRect(x: origin.x + CGFloat(x) * T + gap / 2, y: origin.y + CGFloat(y) * T + gap / 2, width: T - gap, height: T - gap)
@@ -45,6 +55,17 @@ enum MazeRenderer {
             ctx.fill(all, with: .color(c.ink.opacity(0.09)))
         }
 
+        // The map: every wall you've lit on this level.
+        if s.map > 0.01 && !s.seen.isEmpty {
+            var known = Path()
+            for key in s.seen {
+                let x = key % 20_000 - 16, y = key / 20_000 - 16
+                guard x >= x0, x <= x1, y >= y0, y <= y1 else { continue }
+                known.addRect(tileRect(x, y))
+            }
+            ctx.fill(known, with: .color(c.ink.opacity(0.4 * s.map)))
+        }
+
         // The lit floor: only where the light reaches, fading out with distance.
         var light = Path()
         if s.light.count > 2 { light.addLines(s.light.map(screen)); light.closeSubpath() }
@@ -53,13 +74,13 @@ enum MazeRenderer {
             l.clip(to: light)
             l.fill(Path(full), with: .radialGradient(
                 Gradient(stops: [
-                    .init(color: c.ink.opacity(0.16 * k), location: 0),
-                    .init(color: c.ink.opacity(0.07 * k), location: 0.3),
-                    .init(color: c.ink.opacity(0.02 * k), location: 0.7),
+                    .init(color: c.ink.opacity(0.34 * k), location: 0),
+                    .init(color: c.ink.opacity(0.16 * k), location: 0.3),
+                    .init(color: c.ink.opacity(0.05 * k), location: 0.7),
                     .init(color: c.ink.opacity(0), location: 1),
                 ]), center: me, startRadius: 0, endRadius: reach))
             l.fill(Path(full), with: .radialGradient(
-                Gradient(colors: [c.accent.opacity(0.14 * k), c.accent.opacity(0)]),
+                Gradient(colors: [c.accent.opacity(0.22 * k), c.accent.opacity(0)]),
                 center: me, startRadius: 0, endRadius: T * 2.2))
         }
 
@@ -72,7 +93,7 @@ enum MazeRenderer {
         }
         for (i, p) in bands.enumerated() where !p.isEmpty {
             let b = (Double(i) + 0.5) / 10
-            ctx.fill(p, with: .color(c.ink.opacity(pow(b, 1.5) * 0.92 * k)))
+            ctx.fill(p, with: .color(c.ink.opacity(min(1, 0.06 + pow(b, 1.05) * 1.05) * k)))
         }
 
         // Dots you dropped stay where you left them, glowing softly; brighter when your light is on them.
@@ -84,8 +105,8 @@ enum MazeRenderer {
             let d = hypot(Double(p.x - me.x), Double(p.y - me.y)) / Double(reach)
             let a = inLight ? max(0.6, 1 - d * 0.5) : 0.45
             let pulse = 1 + 0.12 * sin(s.time * 2.2 + Double(key % 7))
-            let r = T * 0.12
-            let glow = r * 4.2 * pulse
+            let r = max(T * 0.12, 3 * CGFloat(s.map))
+            let glow = max(r * 4.2, 10 * CGFloat(s.map)) * pulse
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - glow, y: p.y - glow, width: glow * 2, height: glow * 2)),
                      with: .radialGradient(Gradient(colors: [c.accent.opacity(0.42 * a), c.accent.opacity(0)]), center: p, startRadius: 0, endRadius: glow))
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(a)))
@@ -123,6 +144,28 @@ enum MazeRenderer {
                 if m.dx != 0 { w *= along; h *= across } else { h *= along; w *= across }
             }
             ctx.fill(Path(CGRect(x: p.x - w / 2, y: p.y - h / 2, width: w, height: h)), with: .color(c.accent))
+
+            // On the map, a ring marks where you are.
+            if s.map > 0.05 {
+                let rr = 14 + 4 * sin(s.time * 4)
+                ctx.stroke(Path(ellipseIn: CGRect(x: p.x - rr, y: p.y - rr, width: rr * 2, height: rr * 2)),
+                           with: .color(c.accent.opacity(s.map)), lineWidth: 2)
+            }
+
+            // New dots: a ring of them around you that turns and gathers in.
+            if s.dotGain > 0 && s.dotGainAge < 1.4 {
+                let a = s.dotGainAge / 1.4
+                let ease = 1 - pow(1 - a, 3)
+                let radius = T * (1.6 - 1.4 * CGFloat(ease))
+                for i in 0..<s.dotGain {
+                    let ang = Double(i) / Double(s.dotGain) * 2 * .pi + a * 3
+                    let q = CGPoint(x: p.x + cos(ang) * radius, y: p.y + sin(ang) * radius)
+                    let r = T * 0.1
+                    ctx.fill(Path(ellipseIn: CGRect(x: q.x - r * 3, y: q.y - r * 3, width: r * 6, height: r * 6)),
+                             with: .radialGradient(Gradient(colors: [c.accent.opacity(0.5 * (1 - a)), c.accent.opacity(0)]), center: q, startRadius: 0, endRadius: r * 3))
+                    ctx.fill(Path(ellipseIn: CGRect(x: q.x - r, y: q.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(1 - a * a)))
+                }
+            }
         }
 
         if s.flash > 0 {

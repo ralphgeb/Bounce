@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var settings = Settings.shared
     @Environment(\.dismiss) private var dismiss
     @AppStorage("iconFollowsLook") private var iconFollowsLook = false
+    @State private var tutorialsReset = false
 
     var body: some View {
         NavigationStack {
@@ -66,6 +67,12 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
+                Section("Hide") {
+                    LabeledContent("Best score", value: "\(settings.hideBest)")
+                    LabeledContent("Furthest board", value: settings.hideLevel > 0 ? "\(settings.hideLevel)" : "–")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
                 Section("Maze") {
                     LabeledContent("Deepest level", value: settings.mazeDeepest > 0 ? "\(settings.mazeDeepest)" : "–")
                     LabeledContent("Fastest level 1", value: settings.mazeTimes["1"].map(formatTime) ?? "–")
@@ -75,6 +82,24 @@ struct SettingsView: View {
 
                 Section("Switch") {
                     LabeledContent("Best score", value: "\(settings.switchBest)")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section("Hue") {
+                    LabeledContent("Levels solved", value: "\(settings.hueSolved) of \(HueLevels.count)")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section {
+                    Button {
+                        Coach.resetAll()
+                        tutorialsReset = true
+                        Haptics.notify(.success)
+                    } label: {
+                        Text(tutorialsReset ? "Tutorials will show again" : "Show tutorials again")
+                            .foregroundStyle(tutorialsReset ? colors.ink.opacity(0.5) : colors.accent)
+                    }
+                    .disabled(tutorialsReset)
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 

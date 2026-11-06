@@ -6,18 +6,33 @@ struct MazeView: View {
     let colors: Colors
 
     @State private var swiped = false
+    @State private var downAt: Date?
+    @State private var holding = false
+    @State private var holdTask: Task<Void, Never>?
 
     var body: some View {
         let frame = game.frame
         ZStack {
             Canvas { ctx, size in
                 _ = frame
-                // Zoomed in: about seven tiles across the screen.
-                let scene = MazeRenderer.Scene(
-                    maze: game.maze, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
-                    range: game.range, tile: size.width / 7,
+                // Zoomed in: about seven tiles across. On the map, out to the whole maze.
+                let m = game.maze
+                let near = size.width / 7
+                let far = min(size.width / CGFloat(m.width + 2), (size.height - 160) / CGFloat(m.height + 2))
+                let z = CGFloat(game.map)
+                let tile = near + (far - near) * z
+                let middle = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 + 1.2)
+                let camera = CGPoint(x: game.pos.x + (middle.x - game.pos.x) * z, y: game.pos.y + (middle.y - game.pos.y) * z)
+                var scene = MazeRenderer.Scene(
+                    maze: m, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
+                    range: game.range, tile: tile,
                     moving: game.moving, squash: game.squash, bump: game.bump, flash: game.flash,
                     time: game.totalTime, revealWalls: Settings.shared.mazeRevealWalls)
+                scene.map = game.map
+                scene.seen = game.seen
+                scene.camera = camera
+                scene.dotGain = game.dotGain
+                scene.dotGainAge = game.dotGainAge
                 MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
             }
             .ignoresSafeArea()
@@ -25,11 +40,23 @@ struct MazeView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { v in
+                        // Hold still for a moment to see the map.
+                        if downAt == nil {
+                            downAt = Date()
+                            holdTask?.cancel()
+                            holdTask = Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(0.45))
+                                guard !Task.isCancelled, downAt != nil, !swiped else { return }
+                                holding = true
+                                game.showMap(true)
+                            }
+                        }
                         // One move per swipe, as soon as the finger has clearly picked a direction.
-                        guard !swiped else { return }
+                        guard !swiped, !holding else { return }
                         let t = v.translation
                         guard hypot(t.width, t.height) > 22 else { return }
                         swiped = true
+                        holdTask?.cancel()
                         if abs(t.width) > abs(t.height) {
                             game.swipe(t.width > 0 ? .right : .left)
                         } else {
@@ -37,17 +64,30 @@ struct MazeView: View {
                         }
                     }
                     .onEnded { v in
-                        // A tap (no swipe): drop or pick up a dot.
-                        if !swiped && hypot(v.translation.width, v.translation.height) < 12 { game.tap() }
+                        holdTask?.cancel()
+                        // A tap (no swipe, no hold): drop or pick up a dot.
+                        if holding {
+                            game.showMap(false)
+                        } else if !swiped && hypot(v.translation.width, v.translation.height) < 12 {
+                            game.tap()
+                        }
                         swiped = false
+                        holding = false
+                        downAt = nil
                     }
+            )
+            .simultaneousGesture(
+                // Pinch in to zoom out to the map; let go and it zooms back.
+                MagnifyGesture()
+                    .onChanged { v in game.pinch(Double((1 - v.magnification) * 2.2)) }
+                    .onEnded { _ in game.pinch(0) }
             )
 
             VStack(spacing: 0) {
                 hud
                 Spacer()
-                if game.level == 1 && game.levelTime < 5 {
-                    Text("Swipe to move · tap to drop a dot")
+                if game.level == 1 && game.levelTime < 5 && !game.coach.active {
+                    Text("Swipe to move · tap to drop a dot · hold for the map")
                         .font(.system(size: 12, weight: .semibold))
                         .tracking(3)
                         .textCase(.uppercase)
@@ -70,6 +110,7 @@ struct MazeView: View {
             }
 
             if game.phase == .paused { paused }
+            CoachOverlay(coach: game.coach, colors: colors)
         }
         .animation(.easeOut(duration: 0.25), value: game.toastID)
     }
@@ -88,10 +129,14 @@ struct MazeView: View {
                         .foregroundStyle(colors.ink.opacity(0.35))
                 }
                 HStack(spacing: 5) {
-                    Circle().fill(colors.accent).frame(width: 6, height: 6)
+                    Circle().fill(colors.accent).frame(width: 7, height: 7)
+                        .shadow(color: colors.accent.opacity(0.8), radius: 4)
                     Text("\(game.dotsLeft)")
-                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(colors.ink.opacity(0.55))
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(colors.ink.opacity(0.6))
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: game.dotsLeft)
+                    DotGainBadge(amount: game.dotGain, id: game.dotGainID, colors: colors)
                 }
                 .padding(.top, 6)
                 .accessibilityElement()
@@ -142,6 +187,30 @@ struct MazeView: View {
     }
 }
 
+/// "+3": pops up next to the dots count when new dots arrive, then fades.
+private struct DotGainBadge: View {
+    let amount: Int
+    let id: Int
+    let colors: Colors
+    @State private var shown = false
+
+    var body: some View {
+        Text("+\(amount)")
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(colors.accent)
+            .scaleEffect(shown ? 1 : 0.4)
+            .opacity(shown ? 1 : 0)
+            .onChange(of: id, initial: true) {
+                guard amount > 0 else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { shown = true }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.6))
+                    withAnimation(.easeOut(duration: 0.4)) { shown = false }
+                }
+            }
+    }
+}
+
 /// The Maze landing page: four squares over M A Z E, how to play, and Start.
 struct MazeHome: View {
     let game: MazeGame
@@ -183,7 +252,8 @@ struct MazeHome: View {
         VStack(alignment: .leading, spacing: 12) {
             rule(Rectangle().fill(colors.accent).frame(width: 12, height: 12), "You. Swipe to slide to the next turning")
             rule(glowMark, "Your light shines all around. Walls cast shadows")
-            rule(Circle().fill(colors.accent).frame(width: 5, height: 5), "Tap to drop a dot, tap again to pick it up")
+            rule(Circle().fill(colors.accent).frame(width: 6, height: 6), "Tap to drop a dot, tap again to pick it up")
+            rule(mapMark, "Hold or pinch to see the map")
             rule(goalMark, "Reach the glow to go deeper. 20 levels")
         }
     }
@@ -194,6 +264,14 @@ struct MazeHome: View {
             Rectangle().fill(colors.accent).frame(width: 5, height: 5)
         }
         .frame(width: 18, height: 18)
+    }
+
+    private var mapMark: some View {
+        ZStack {
+            Rectangle().strokeBorder(colors.ink.opacity(0.6), lineWidth: 1.5)
+            Rectangle().fill(colors.accent).frame(width: 4, height: 4).offset(x: -2, y: 2)
+        }
+        .frame(width: 14, height: 14)
     }
 
     private var goalMark: some View {

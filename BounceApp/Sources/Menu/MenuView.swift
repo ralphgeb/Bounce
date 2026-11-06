@@ -1,9 +1,10 @@
 import SwiftUI
 
-enum Screen { case menu, bounce, maze, switcher }
+enum Screen { case menu, bounce, hide, maze, switcher, hue }
 
-/// The main menu: three games, one section each, split by thin lines. Drag in a section and its
-/// logo stretches after your finger and springs back; the other two barely move.
+/// The main menu: five games, one section each, split by thin lines. Drag in a section and its
+/// logo stretches after your finger and springs back (the others barely move); only a real tap,
+/// without dragging, opens the game.
 struct MenuView: View {
     let colors: Colors
     let open: (Screen) -> Void
@@ -11,11 +12,15 @@ struct MenuView: View {
 
     @State private var drag: CGSize = .zero
     @State private var active: Int?
+    @State private var pressed: Int?
+    @State private var travelled: CGFloat = 0
     @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let c = colors
+        let s = Settings.shared
+        let second = s.secondAccent.color
         VStack(spacing: 0) {
             HStack {
                 Spacer()
@@ -27,24 +32,34 @@ struct MenuView: View {
                 }
                 .accessibilityLabel("Settings")
             }
-            .padding(.leading, 22)
             .padding(.trailing, 10)
 
             section(0, .bounce, word: "BOUNCE",
                     fills: [c.ink, c.accent, c.ink.opacity(0.72), c.ink.opacity(0.48), c.ink.opacity(0.28), c.ink.opacity(0.12)],
                     line: "Break the wall that never ends",
-                    record: Settings.shared.best > 0 ? "Best \(Settings.shared.best)" : nil)
+                    record: s.best > 0 ? "Best \(s.best)" : nil)
             divider
-            section(1, .maze, word: "MAZE",
+            section(1, .hide, word: "HIDE",
+                    fills: [c.ink.opacity(0.12), c.ink.opacity(0.45), c.accent, c.ink.opacity(0.2)],
+                    line: "Play in the dark",
+                    record: s.hideBest > 0 ? "Best \(s.hideBest)" : nil)
+            divider
+            section(2, .maze, word: "MAZE",
                     fills: [c.ink, c.accent, c.ink.opacity(0.5), c.ink.opacity(0.22)],
-                    line: "Find your way in the dark",
-                    record: Settings.shared.mazeDeepest > 1 ? "Deepest level \(Settings.shared.mazeDeepest)" : nil)
+                    line: "Find your way out",
+                    record: s.mazeDeepest > 1 ? "Level \(s.mazeDeepest)" : nil)
             divider
-            section(2, .switcher, word: "SWITCH",
-                    fills: [c.ink.opacity(0.62), c.ink, c.ink.opacity(0.16), c.accent, c.ink.opacity(0.36), c.ink],
+            section(3, .switcher, word: "SWITCH",
+                    fills: [c.ink.opacity(0.65), c.ink.opacity(0.9), c.ink.opacity(0.15), c.accent, c.ink.opacity(0.4), c.ink.opacity(0.9)],
                     line: "Line up three of a shade",
-                    record: Settings.shared.switchBest > 0 ? "Best \(Settings.shared.switchBest)" : nil)
+                    record: s.switchBest > 0 ? "Best \(s.switchBest)" : nil)
+            divider
+            section(4, .hue, word: "HUE",
+                    fills: [c.accent, HueColor.mix(c.accent, second, 0.5), second],
+                    line: "Put the colours in order",
+                    record: s.hueSolved > 0 ? "\(s.hueSolved)/\(HueLevels.count)" : nil)
         }
+        .padding(.bottom, 6)
         .onAppear {
             appeared = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8)) { appeared = true }
@@ -56,49 +71,54 @@ struct MenuView: View {
     }
 
     private func section(_ index: Int, _ screen: Screen, word: String, fills: [Color], line: String, record: String?) -> some View {
-        Button {
-            Haptics.tap(.medium)
-            open(screen)
-        } label: {
-            VStack(spacing: 16) {
-                ElasticLogo(word: word, fills: fills, ink: colors.ink, squareSize: 26, letterSize: 21,
-                            drag: active == index ? drag : CGSize(width: drag.width * 0.1, height: drag.height * 0.1),
-                            dropped: appeared)
-                HStack(spacing: 8) {
-                    Text(line)
-                        .font(.system(size: 13))
-                        .foregroundStyle(colors.ink.opacity(0.55))
-                    if let record {
-                        Text("·").foregroundStyle(colors.ink.opacity(0.3))
-                        Text(record.uppercased())
-                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                            .tracking(1.2)
-                            .foregroundStyle(colors.ink)
-                    }
+        VStack(spacing: 12) {
+            ElasticLogo(word: word, fills: fills, ink: colors.ink, squareSize: 22, letterSize: 18,
+                        drag: active == index ? drag : CGSize(width: drag.width * 0.1, height: drag.height * 0.1),
+                        dropped: appeared)
+            HStack(spacing: 8) {
+                Text(line)
+                    .font(.system(size: 13))
+                    .foregroundStyle(colors.ink.opacity(0.55))
+                if let record {
+                    Text("·").foregroundStyle(colors.ink.opacity(0.3))
+                    Text(record.uppercased())
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .tracking(1.2)
+                        .foregroundStyle(colors.ink)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 24)
-            .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8).delay(Double(index) * 0.08), value: appeared)
         }
-        .buttonStyle(SectionPress(colors: colors))
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 2)
-                .onChanged { v in active = index; drag = v.translation }
-                .onEnded { _ in drag = .zero }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(colors.ink.opacity(pressed == index && travelled < 10 ? 0.04 : 0))
+        .contentShape(Rectangle())
+        .scaleEffect(pressed == index && travelled < 10 ? 0.985 : 1)
+        .animation(.easeOut(duration: 0.15), value: pressed == index && travelled < 10)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 24)
+        .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8).delay(Double(index) * 0.06), value: appeared)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { v in
+                    if pressed == nil { travelled = 0 }
+                    pressed = index
+                    active = index
+                    drag = v.translation
+                    travelled = max(travelled, hypot(v.translation.width, v.translation.height))
+                }
+                .onEnded { _ in
+                    // A tap opens the game; a drag only stretches the logo.
+                    let tapped = travelled < 10
+                    drag = .zero
+                    pressed = nil
+                    if tapped {
+                        Haptics.tap(.medium)
+                        open(screen)
+                    }
+                }
         )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(word.capitalized). \(line)")
-    }
-}
-
-private struct SectionPress: ButtonStyle {
-    let colors: Colors
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(colors.ink.opacity(configuration.isPressed ? 0.04 : 0))
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open(screen) }
     }
 }

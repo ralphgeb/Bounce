@@ -21,8 +21,8 @@ struct Gem {
 }
 
 /// Switch: swipe a square to swap it with its neighbour; three or more of a shade in a line clear.
-/// Four in a line makes a row or column clearer, five a circle. Two lines at once make a diamond,
-/// and a diamond also turns up after every 12 squares cleared. No limit on moves; a hint when stuck.
+/// Four in a line makes a row or column clearer, five a circle, a T or an L a diamond; a diamond
+/// also turns up after every 120 squares cleared. No limit on moves; a hint when stuck.
 @MainActor
 @Observable
 final class SwitchGame {
@@ -61,6 +61,10 @@ final class SwitchGame {
     /// Circles just gone off: centre cell and life.
     @ObservationIgnored private(set) var blasts: [(x: Int, y: Int, life: Double)] = []
     @ObservationIgnored var pressed: Int?
+    /// Seconds since the game started, for the diamonds' shine.
+    @ObservationIgnored private(set) var clock: Double = 0
+    /// The first-time tutorial.
+    let coach = Coach()
 
     @ObservationIgnored private var step: Step = .idle
     @ObservationIgnored private var nextID = 0
@@ -88,6 +92,14 @@ final class SwitchGame {
         step = .falling
         phase = .playing
         ticker.start()
+        coach.begin("switch", steps: [
+            .init(text: "Swipe a square to swap it with the one next to it. Three of a shade in a line clear.",
+                  waitFor: .tapToContinue, gesture: .swipeRight),
+            .init(text: "Line up four for a row or column clearer", waitFor: .tapToContinue, picture: .switchFour),
+            .init(text: "Line up five for a circle: it clears the squares around it", waitFor: .tapToContinue, picture: .switchFive),
+            .init(text: "Make a T or an L for a diamond: it clears every square of its shade", waitFor: .tapToContinue, picture: .switchT),
+            .init(text: "Your turn. Swipe to make a line", waitFor: .swap, gesture: .swipeAny),
+        ])
     }
 
     func pause() { if phase == .playing { phase = .paused } }
@@ -212,6 +224,7 @@ final class SwitchGame {
         }
         moves += 1
         combo = 1
+        coach.did(.swap)
         resolve(found, focus: [b, a])
     }
 
@@ -225,14 +238,12 @@ final class SwitchGame {
             let at = focus.first(where: { r.cells.contains($0) }) ?? r.cells[r.cells.count / 2]
             make.append((at, r.cells.count >= 5 ? .bomb : (r.across ? .row : .column)))
         }
-        // Two lines at once (from one swipe, or crossing in an L or a T): a diamond.
-        if found.count >= 2 {
-            var across = Set<Int>(), down = Set<Int>()
-            for r in found { if r.across { across.formUnion(r.cells) } else { down.formUnion(r.cells) } }
-            let corner = across.intersection(down).first
-            let at = corner ?? focus.first(where: { f in found.contains { $0.cells.contains(f) } }) ?? found[0].cells[found[0].cells.count / 2]
-            make.removeAll { $0.cell == at }
-            make.append((at, .shade))
+        // A line across and a line down that cross (a T or an L): a diamond where they meet.
+        var across = Set<Int>(), down = Set<Int>()
+        for r in found { if r.across { across.formUnion(r.cells) } else { down.formUnion(r.cells) } }
+        for corner in across.intersection(down) {
+            make.removeAll { $0.cell == corner }
+            make.append((corner, .shade))
         }
         // One power per cell.
         var taken = Set<Int>()
@@ -274,9 +285,9 @@ final class SwitchGame {
         }
 
         score += clear.count * 10 * combo
-        // Every 12 squares cleared, a diamond turns up among the new squares.
+        // Every 120 squares cleared, a diamond turns up among the new squares.
         clearedSinceDiamond += clear.count
-        if clearedSinceDiamond >= 12 { clearedSinceDiamond -= 12; diamondDue = true }
+        if clearedSinceDiamond >= 120 { clearedSinceDiamond -= 120; diamondDue = true }
         for c in clear {
             guard var g = grid[c] else { continue }
             burst(g)
@@ -357,6 +368,7 @@ final class SwitchGame {
 
     private func tick(_ dt: Double) {
         guard phase == .playing else { return }
+        clock += dt
         var moving = false
         for i in grid.indices {
             guard var g = grid[i] else { continue }

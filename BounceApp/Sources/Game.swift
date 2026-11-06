@@ -10,6 +10,7 @@ struct Block {
         case row        // chamfered, line across: clears its row
         case column     // chamfered, line down: clears its column
         case bomb       // big circle: clears every square on the screen
+        case flare      // Hide only, accent ring: lights up every square for three seconds
     }
 
     var rect: CGRect
@@ -53,6 +54,22 @@ final class Game {
     private(set) var toast: String?
     private(set) var toastID = 0
     private(set) var newBest = false
+    /// Hide: the board you're on (each one cleared brings the next).
+    private(set) var level = 1
+
+    /// Hide is Bounce in the dark: the wall stays still, only what the balls light up can be seen,
+    /// and clearing the board brings the next, bigger one.
+    let hide: Bool
+    /// The first-time tutorial.
+    let coach = Coach()
+    /// Hide: seconds left of a flare (every square lit up).
+    @ObservationIgnored private(set) var flareLeft: Double = 0
+    let flareTime: Double = 3
+    @ObservationIgnored private var dragFrom: CGFloat?
+
+    init(hide: Bool = false) {
+        self.hide = hide
+    }
 
     // The board, in points. Not observed: the canvas reads it every frame.
     @ObservationIgnored private(set) var size: CGSize = .zero
@@ -109,7 +126,25 @@ final class Game {
         reset()
         phase = .playing
         startLoop()
-        launch()
+        if hide {
+            coach.begin("hide", steps: [
+                .init(text: "You play in the dark. The ball gives off light: you only see the squares it reaches.",
+                      waitFor: .tapToContinue, picture: .hideLight),
+                .init(text: "Slide anywhere to move the paddle", waitFor: .drag, gesture: .dragSideways),
+                .init(text: "Tap to send the ball", waitFor: .launch, gesture: .tap),
+                .init(text: "Clear every square to light up the next board. Ring squares light up everything for 3 seconds.",
+                      waitFor: .tapToContinue),
+            ])
+        } else {
+            coach.begin("bounce", steps: [
+                .init(text: "Slide anywhere to move the paddle", waitFor: .drag, gesture: .dragSideways),
+                .init(text: "Tap to send the ball", waitFor: .launch, gesture: .tap),
+                .init(text: "Break the squares before the wall reaches the line above your paddle. Accent squares are power-ups.",
+                      waitFor: .tapToContinue),
+            ])
+        }
+        // With the tutorial on, the ball waits for its step.
+        if !coach.active { launch() }
     }
 
     func pause() {
@@ -130,11 +165,17 @@ final class Game {
 
     private func reset() {
         elapsed = 0; score = 0; lives = 3; run = 0; freshLife = false; newBest = false
-        particles = []; flash = 0; bullets = []; shootLeft = 0; sweeps = []
+        particles = []; flash = 0; bullets = []; shootLeft = 0; sweeps = []; flareLeft = 0
+        level = 1
         paddleX = size.width / 2
+        dragFrom = nil
         blocks = []
-        // The two starting rows nearest the paddle are plain: power-ups start from the third row up.
-        for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH, specials: i < 2) }
+        if hide {
+            buildBoard()
+        } else {
+            // The two starting rows nearest the paddle are plain: power-ups start from the third row up.
+            for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH, specials: i < 2) }
+        }
         nextRowY = top
         serve()
     }
@@ -145,9 +186,26 @@ final class Game {
         run = 0
     }
 
+    /// Hide: a still board, one row more each level (5 to start, up to 11), tougher as you go.
+    private func buildBoard() {
+        let rows = min(11, 4 + level)
+        let y0 = top + rowH * 0.5
+        blocks = []
+        for r in 0..<rows {
+            var row = makeRow(y: y0 + CGFloat(r) * rowH, specials: r < rows - 1, holes: r % 3 == 2 ? 2 : 1)
+            // Later boards have tougher squares.
+            for i in row.indices where row[i].kind == .plain && Int.random(in: 0..<10) < min(6, level) {
+                row[i].hp = min(3, row[i].hp + 1); row[i].max = row[i].hp
+            }
+            blocks += row
+        }
+    }
+
     /// The first tap sends the ball off the paddle.
     func launch() {
         guard phase == .playing, var b = balls.first, b.stuck else { return }
+        if coach.active && coach.current?.waitFor != .launch { return }
+        coach.did(.launch)
         let a = (-90 + Double.random(in: -15...15)) * .pi / 180
         let sp = baseSpeed
         b.v = CGVector(dx: cos(a) * sp, dy: sin(a) * sp)
@@ -160,8 +218,13 @@ final class Game {
     private func gameOver() {
         phase = .over
         let s = Settings.shared
-        if score > s.best { s.best = score; newBest = score > 0 }
-        if elapsed > s.longest { s.longest = elapsed }
+        if hide {
+            if score > s.hideBest { s.hideBest = score; newBest = score > 0 }
+            if level > s.hideLevel { s.hideLevel = level }
+        } else {
+            if score > s.best { s.best = score; newBest = score > 0 }
+            if elapsed > s.longest { s.longest = elapsed }
+        }
         Haptics.notify(.error)
         stopLoop()
         frame &+= 1
@@ -180,10 +243,10 @@ final class Game {
 
     // MARK: The wall
 
-    private func makeRow(y: CGFloat, specials: Bool = true) -> [Block] {
+    private func makeRow(y: CGFloat, specials: Bool = true, holes fixedHoles: Int? = nil) -> [Block] {
         // Each row leaves 1 to 3 gaps, and blocks get tougher the longer you last.
         let level = Double(Int(elapsed / 25))
-        let holes = Int.random(in: 1...3)
+        let holes = fixedHoles ?? Int.random(in: 1...3)
         var skip = Set<Int>()
         while skip.count < holes { skip.insert(Int.random(in: 0..<cols)) }
         var row: [Block] = []
@@ -192,7 +255,7 @@ final class Game {
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
             // Special squares, at random, roughly: a row or column clearer every 20 squares, a split
             // every 50, a blaster every 100 and a screen-clearing circle every 150.
-            let k = specials ? Self.randomKind() : .plain
+            let k = specials ? Self.randomKind(hide: hide) : .plain
             if k != .plain { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
             row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, kind: k))
@@ -221,7 +284,8 @@ final class Game {
         let dt = lastTime == 0 ? 1.0 / 60 : min(1.0 / 30, time - lastTime)
         lastTime = time
         guard phase == .playing else { return }
-        step(dt)
+        // While a tutorial card is up, the game waits.
+        if coach.current?.waitFor != .tapToContinue { step(dt) }
         fade(dt)
         frame &+= 1
     }
@@ -242,6 +306,7 @@ final class Game {
             i -= 1
         }
         if flash > 0 { flash = max(0, flash - dt * 2.5) }
+        if flareLeft > 0 { flareLeft = max(0, flareLeft - dt) }
         for j in sweeps.indices.reversed() {
             sweeps[j].life -= dt * 3
             if sweeps[j].life <= 0 { sweeps.remove(at: j) }
@@ -271,22 +336,40 @@ final class Game {
         let half = paddleW / 2
 
         // Paddle follows the finger, smoothly.
-        if let tx = targetX { paddleX += (tx - paddleX) * CGFloat(min(1, dt * 22)) }
+        if let tx = targetX {
+            paddleX += (tx - paddleX) * CGFloat(min(1, dt * 22))
+            if dragFrom == nil { dragFrom = tx }
+            if let f = dragFrom, abs(tx - f) > 40 { coach.did(.drag) }
+        }
         paddleX = max(side / 2 + half, min(w - side / 2 - half, paddleX))
 
-        // The wall drifts down, a little faster over time: endless.
-        let fall = (3.2 + elapsed * 0.07) * Double(size.height / 760)
-        let dy = CGFloat(fall * dt)
-        for i in blocks.indices { blocks[i].rect.origin.y += dy }
-        nextRowY += dy
-        // A new row slides in at the top each time the top row has moved down by one row.
-        while nextRowY >= top + rowH {
-            nextRowY -= rowH
-            blocks += makeRow(y: nextRowY)
+        // Hide: the board stays still; clear it and the next one comes.
+        if hide {
+            if blocks.isEmpty {
+                level += 1
+                buildBoard()
+                bullets = []
+                serve()
+                flash = 1
+                show("Level \(level)")
+                Haptics.notify(.success)
+                return
+            }
+        } else if !coach.active {
+            // The wall drifts down, a little faster over time: endless.
+            let fall = (3.2 + elapsed * 0.07) * Double(size.height / 760)
+            let dy = CGFloat(fall * dt)
+            for i in blocks.indices { blocks[i].rect.origin.y += dy }
+            nextRowY += dy
+            // A new row slides in at the top each time the top row has moved down by one row.
+            while nextRowY >= top + rowH {
+                nextRowY -= rowH
+                blocks += makeRow(y: nextRowY)
+            }
         }
 
         // A block reaching the line costs a life and knocks the bottom three rows away.
-        if blocks.contains(where: { $0.rect.maxY >= dangerY }) {
+        if !hide && blocks.contains(where: { $0.rect.maxY >= dangerY }) {
             if loseLife() { return }
             let cut = dangerY - rowH * 3
             for b in blocks where b.rect.maxY > cut { burst(b) }
@@ -443,6 +526,10 @@ final class Game {
                 flash = 1
                 show("Clear")
                 Haptics.notify(.success)
+            case .flare:
+                flareLeft = flareTime
+                show("Flare")
+                Haptics.notify(.success)
             }
             for c in cleared {
                 score += c.max * chain
@@ -459,9 +546,12 @@ final class Game {
         return out
     }
 
-    private static func randomKind() -> Block.Kind {
+    private static func randomKind(hide: Bool = false) -> Block.Kind {
         let r = Double.random(in: 0..<1)
-        let odds: [(Block.Kind, Double)] = [(.split, 1.0 / 50), (.row, 1.0 / 40), (.column, 1.0 / 40), (.blaster, 1.0 / 100), (.bomb, 1.0 / 150)]
+        // Hide's boards are small, so its specials come a little more often, and it has the flare.
+        let odds: [(Block.Kind, Double)] = hide
+            ? [(.flare, 1.0 / 22), (.split, 1.0 / 30), (.row, 1.0 / 30), (.column, 1.0 / 30), (.blaster, 1.0 / 60), (.bomb, 1.0 / 140)]
+            : [(.split, 1.0 / 50), (.row, 1.0 / 40), (.column, 1.0 / 40), (.blaster, 1.0 / 100), (.bomb, 1.0 / 150)]
         var sum = 0.0
         for (kind, p) in odds {
             sum += p

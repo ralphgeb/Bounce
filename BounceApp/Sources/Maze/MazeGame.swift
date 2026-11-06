@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Maze: you are a square in pitch black, giving off light all around you. Walls catch the light and
 /// throw shadows, and that is all you see. Swipe to slide; you stop at walls and at every turning.
-/// Tap to drop a dot (30 a level) so you know where you've been. Find the glowing way out to go deeper.
+/// Tap to drop a dot so you know where you've been (10 to start, 3 more each level). Hold or pinch
+/// to see the map of the walls you've lit. Find the glowing way out to go deeper.
 @MainActor
 @Observable
 final class MazeGame {
@@ -32,8 +33,14 @@ final class MazeGame {
     /// After a run: the level you got to and how long it took (for the landing page).
     private(set) var lastRun: (level: Int, time: Double)?
     private(set) var newRecord = false
-    private(set) var dotsLeft = 30
-    let dotsPerLevel = 30
+    private(set) var dotsLeft = 10
+    /// The last dots you were given, and when (for the little animation).
+    private(set) var dotGain = 0
+    private(set) var dotGainID = 0
+    let firstDots = 10
+    let dotsPerLevel = 3
+    /// The first-time tutorial.
+    let coach = Coach()
 
     // The board, in tile units. The canvas reads these every frame.
     @ObservationIgnored private(set) var maze = Maze.generate(level: 1)
@@ -42,6 +49,13 @@ final class MazeGame {
     @ObservationIgnored private(set) var light: [CGPoint] = []
     @ObservationIgnored private(set) var lit: [Int: Double] = [:]
     @ObservationIgnored private(set) var dots = Set<Int>()
+    /// Walls you have lit on this level: shown on the map.
+    @ObservationIgnored private(set) var seen = Set<Int>()
+    /// 0 = normal view, 1 = the whole map. Eases towards mapTarget.
+    @ObservationIgnored private(set) var map: Double = 0
+    @ObservationIgnored var mapTarget: Double = 0
+    /// Seconds since the dots were given (for the ring of new dots around you).
+    @ObservationIgnored private(set) var dotGainAge: Double = 9
     @ObservationIgnored private(set) var range: Double = 5
     @ObservationIgnored private(set) var flash: Double = 0
     @ObservationIgnored private(set) var bump: (dir: Dir, amount: Double)?
@@ -71,10 +85,19 @@ final class MazeGame {
         level = 1
         totalTime = 0
         newRecord = false
+        dotsLeft = 0
         load(level)
         phase = .playing
         ticker.start()
         show("Level 1")
+        coach.begin("maze", steps: [
+            .init(text: "Swipe left to slide that way", waitFor: .swipeLeft, gesture: .swipeLeft),
+            .init(text: "Now swipe right", waitFor: .swipeRight, gesture: .swipeRight),
+            .init(text: "Tap to drop a dot where you stand", waitFor: .dropDot, gesture: .tap),
+            .init(text: "Tap on it again to pick it up, so you don't run out", waitFor: .pickDot, gesture: .tap),
+            .init(text: "Hold anywhere to see the map of where you've been", waitFor: .hold, gesture: .hold),
+            .init(text: "Find the glowing circle to go one level deeper. 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
+        ])
     }
 
     func pause() { if phase == .playing { phase = .paused } }
@@ -94,7 +117,10 @@ final class MazeGame {
         target = nil; moving = nil; queued = nil
         facing = -.pi / 2; facingTarget = facing
         dots = []
-        dotsLeft = dotsPerLevel
+        seen = []
+        map = 0; mapTarget = 0
+        // 10 dots on level 1; each new level adds 3 to what you have left.
+        giveDots(l == 1 ? firstDots : dotsPerLevel)
         levelTime = 0
         relight()
         frame &+= 1
@@ -104,6 +130,26 @@ final class MazeGame {
 
     // MARK: Dots
 
+    private func giveDots(_ n: Int) {
+        dotsLeft += n
+        dotGain = n
+        dotGainID += 1
+        dotGainAge = 0
+    }
+
+    /// Hold (or pinch): show the map while the finger stays down.
+    func showMap(_ on: Bool) {
+        guard phase == .playing else { return }
+        if on && mapTarget == 0 { coach.did(.hold); Haptics.tap(.soft, intensity: 0.5) }
+        mapTarget = on ? 1 : 0
+    }
+
+    func pinch(_ amount: Double) {
+        guard phase == .playing else { return }
+        mapTarget = max(0, min(1, amount))
+        if amount > 0.5 { coach.did(.hold) }
+    }
+
     /// Tap: drop a dot where you stand, or pick one up if there's one here.
     func tap() {
         guard phase == .playing, target == nil else { return }
@@ -111,9 +157,11 @@ final class MazeGame {
         if dots.contains(k) {
             dots.remove(k); dotsLeft += 1
             Haptics.tap(.soft, intensity: 0.6)
+            coach.did(.pickDot)
         } else if dotsLeft > 0 {
             dots.insert(k); dotsLeft -= 1
             Haptics.tap(.rigid, intensity: 0.6)
+            coach.did(.dropDot)
         } else {
             show("No dots left")
             Haptics.notify(.warning)
@@ -125,6 +173,8 @@ final class MazeGame {
 
     func swipe(_ d: Dir) {
         guard phase == .playing else { return }
+        if d == .left { coach.did(.swipeLeft) }
+        if d == .right { coach.did(.swipeRight) }
         if target != nil { queued = d; return }
         go(d)
     }
@@ -239,6 +289,9 @@ final class MazeGame {
             bump = b.amount > 0 ? b : nil
         }
         if flash > 0 { flash = max(0, flash - dt * 1.4) }
+        map += (mapTarget - map) * min(1, dt * 9)
+        if abs(map - mapTarget) < 0.002 { map = mapTarget }
+        dotGainAge += dt
 
         relight()
         frame &+= 1
@@ -250,5 +303,6 @@ final class MazeGame {
         light = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: range, rays: 360, lit: &l)
         Lighting.fillCorners(maze, lit: &l)
         lit = l
+        seen.formUnion(l.keys)
     }
 }

@@ -11,6 +11,10 @@ struct RGB: Hashable {
         b = Double(hex & 0xFF) / 255
     }
 
+    init(r: Double, g: Double, b: Double) {
+        self.r = r; self.g = g; self.b = b
+    }
+
     var color: Color { Color(red: r, green: g, blue: b) }
 }
 
@@ -100,6 +104,12 @@ final class Settings {
     var mazeRevealWalls: Bool { didSet { defaults.set(mazeRevealWalls, forKey: "maze.reveal") } }
     /// Maze: level 20's way out has been found.
     var mazeFinished: Bool { didSet { defaults.set(mazeFinished, forKey: "maze.finished") } }
+    /// Hide: the best score and the furthest board.
+    var hideBest: Int { didSet { defaults.set(hideBest, forKey: "hide.best") } }
+    var hideLevel: Int { didSet { defaults.set(hideLevel, forKey: "hide.level") } }
+    /// Hue: how many levels are solved, and the fewest swaps for each ("1": swaps).
+    var hueSolved: Int { didSet { defaults.set(hueSolved, forKey: "hue.solved") } }
+    var hueBest: [String: Int] { didSet { defaults.set(hueBest, forKey: "hue.best") } }
     /// Switch: the best score.
     var switchBest: Int { didSet { defaults.set(switchBest, forKey: "switch.best") } }
 
@@ -114,9 +124,19 @@ final class Settings {
         mazeRevealWalls = defaults.bool(forKey: "maze.reveal")
         mazeFinished = defaults.bool(forKey: "maze.finished")
         switchBest = defaults.integer(forKey: "switch.best")
+        hideBest = defaults.integer(forKey: "hide.best")
+        hideLevel = defaults.integer(forKey: "hide.level")
+        hueSolved = defaults.integer(forKey: "hue.solved")
+        hueBest = defaults.dictionary(forKey: "hue.best") as? [String: Int] ?? [:]
     }
 
     var look: Look { Look.all.first { $0.id == lookID } ?? Look.all[0] }
+
+    /// A second accent for Hue's two-colour levels: the accent of another look.
+    var secondAccent: RGB {
+        let i = Look.all.firstIndex { $0.id == look.id } ?? 0
+        return Look.all[(i + 2) % Look.all.count].accent
+    }
 
     /// Maze is always played in the dark: the look's dark colours.
     var darkColors: Colors {

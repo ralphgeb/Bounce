@@ -52,6 +52,7 @@ struct GameView: View {
             }
 
             if game.phase == .paused { paused }
+            CoachOverlay(coach: game.coach, colors: colors)
         }
         .animation(.easeOut(duration: 0.25), value: game.toastID)
         .animation(.easeOut(duration: 0.2), value: game.toast == nil)
@@ -77,6 +78,11 @@ struct GameView: View {
                 .padding(.top, 6)
                 .accessibilityElement()
                 .accessibilityLabel("\(game.lives) lives")
+                if game.hide {
+                    Text("Level \(game.level)")
+                        .bounceLabel(colors)
+                        .padding(.top, 6)
+                }
             }
             Spacer()
             VStack(spacing: 8) {
@@ -102,7 +108,7 @@ struct GameView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Best").bounceLabel(colors)
-                Text("\(Settings.shared.best)")
+                Text("\(game.hide ? Settings.shared.hideBest : Settings.shared.best)")
                     .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(colors.ink.opacity(0.35))
             }
@@ -135,6 +141,8 @@ struct GameView: View {
         let ink = colors.ink, accent = colors.accent
         let w = game.size.width
 
+        if game.hide { drawHide(&ctx); return }
+
         // Line above the paddle: warms to the accent as the wall gets close.
         let low = game.blocks.reduce(0) { max($0, $1.rect.maxY) }
         let near = max(0, min(1, (low - (game.paddleY - 220)) / 200))
@@ -146,36 +154,54 @@ struct GameView: View {
         }
 
         // Blocks: plain squares, darker the tougher they are. The same gap across and down.
-        for b in game.blocks {
-            let path = Path(b.rect)
-            let r = b.rect
-            let o = b.age
-            switch b.kind {
-            case .plain:
-                let alpha = b.hp >= 3 ? 1 : b.hp == 2 ? 0.6 : 0.2
-                ctx.fill(path, with: .color(ink.opacity(alpha * o)))
-            case .split:
-                ctx.fill(path, with: .color(accent.opacity(o)))
-            case .blaster:
-                // An accent outline and a big inner square: the gap is as wide as the outline.
-                let line: CGFloat = 2.5
-                ctx.stroke(Path(r.insetBy(dx: line / 2, dy: line / 2)), with: .color(accent.opacity(o)), lineWidth: line)
-                ctx.fill(Path(r.insetBy(dx: line * 2, dy: line * 2)), with: .color(accent.opacity(o)))
-            case .row, .column:
-                // Accent square with cut corners and a short line in the middle: across for a row, down for a column.
-                ctx.fill(Chamfer.path(in: r), with: .color(accent.opacity(o)))
-                let len = r.width * 0.44, t: CGFloat = 2.5
-                let mark = b.kind == .row
-                    ? CGRect(x: r.midX - len / 2, y: r.midY - t / 2, width: len, height: t)
-                    : CGRect(x: r.midX - t / 2, y: r.midY - len / 2, width: t, height: len)
-                ctx.fill(Path(mark), with: .color(colors.background.opacity(o)))
-            case .bomb:
-                // A big circle, as wide as a square: clears the screen.
-                ctx.fill(Path(ellipseIn: r), with: .color(accent.opacity(o)))
-            }
-            if b.hit > 0 { ctx.fill(path, with: .color(accent.opacity(b.hit * 0.7))) }
-        }
+        for b in game.blocks { drawBlock(&ctx, b, light: 1) }
 
+        drawMoving(&ctx)
+    }
+}
+
+extension GameView {
+    /// One block in its shape. `light` (0...1) is how much of it can be seen (always 1 in Bounce).
+    func drawBlock(_ ctx: inout GraphicsContext, _ b: Block, light: Double) {
+        let ink = colors.ink, accent = colors.accent
+        let path = Path(b.rect)
+        let r = b.rect
+        let o = b.age * light
+        guard o > 0.01 else { return }
+        switch b.kind {
+        case .plain:
+            let alpha = b.hp >= 3 ? 1 : b.hp == 2 ? 0.6 : 0.2
+            ctx.fill(path, with: .color(ink.opacity(alpha * o)))
+        case .split:
+            ctx.fill(path, with: .color(accent.opacity(o)))
+        case .blaster:
+            // An accent outline and a big inner square: the gap is as wide as the outline.
+            let line: CGFloat = 2.5
+            ctx.stroke(Path(r.insetBy(dx: line / 2, dy: line / 2)), with: .color(accent.opacity(o)), lineWidth: line)
+            ctx.fill(Path(r.insetBy(dx: line * 2, dy: line * 2)), with: .color(accent.opacity(o)))
+        case .row, .column:
+            // Accent square with cut corners and a short line in the middle: across for a row, down for a column.
+            ctx.fill(Chamfer.path(in: r), with: .color(accent.opacity(o)))
+            let len = r.width * 0.44, t: CGFloat = 2.5
+            let mark = b.kind == .row
+                ? CGRect(x: r.midX - len / 2, y: r.midY - t / 2, width: len, height: t)
+                : CGRect(x: r.midX - t / 2, y: r.midY - len / 2, width: t, height: len)
+            ctx.fill(Path(mark), with: .color(colors.background.opacity(o)))
+        case .bomb:
+            // A big circle, as wide as a square: clears the screen.
+            ctx.fill(Path(ellipseIn: r), with: .color(accent.opacity(o)))
+        case .flare:
+            // An accent ring with a dot: lights everything up.
+            ctx.stroke(Path(ellipseIn: r.insetBy(dx: 2, dy: 2)), with: .color(accent.opacity(o)), lineWidth: 3)
+            let d = r.width * 0.22
+            ctx.fill(Path(ellipseIn: CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)), with: .color(accent.opacity(o)))
+        }
+        if b.hit > 0 { ctx.fill(path, with: .color(accent.opacity(b.hit * 0.7 * max(light, 0.5)))) }
+    }
+
+    /// Sweeps, shots, bits, the paddle and the balls.
+    func drawMoving(_ ctx: inout GraphicsContext) {
+        let ink = colors.ink, accent = colors.accent
         for sweep in game.sweeps {
             ctx.fill(Path(sweep.rect), with: .color(accent.opacity(sweep.life * 0.35)))
         }
@@ -212,6 +238,81 @@ struct GameView: View {
             let r = ball.r
             ctx.fill(Path(ellipseIn: CGRect(x: ball.p.x - r, y: ball.p.y - r, width: r * 2, height: r * 2)), with: .color(accent))
         }
+    }
+
+    /// Hide: pitch dark. Each ball is a light; rays stop at the squares, so they throw shadows,
+    /// and a square shows only as much as the light on it. A flare lights everything for a moment.
+    func drawHide(_ ctx: inout GraphicsContext) {
+        let full = CGRect(origin: .zero, size: game.size)
+        let range: CGFloat = max(170, game.size.width * 0.62)
+        let rects = game.blocks.map(\.rect)
+        var lit = Array(repeating: 0.0, count: rects.count)
+        var light = Path()
+        var sources: [CGPoint] = game.balls.map(\.p)
+        if sources.isEmpty { sources = [CGPoint(x: game.paddleX, y: game.paddleY)] }
+
+        for o in sources {
+            var outline: [CGPoint] = []
+            let rays = 220
+            for k in 0..<rays {
+                let a = Double(k) / Double(rays) * 2 * .pi
+                let dx = CGFloat(cos(a)), dy = CGFloat(sin(a))
+                var best = range
+                var hitIndex = -1
+                for (i, r) in rects.enumerated() {
+                    // Where the ray enters this square (slab method).
+                    var t0: CGFloat = 0, t1: CGFloat = best
+                    if abs(dx) < 1e-6 { if o.x < r.minX || o.x > r.maxX { continue } } else {
+                        var a1 = (r.minX - o.x) / dx, a2 = (r.maxX - o.x) / dx
+                        if a1 > a2 { swap(&a1, &a2) }
+                        t0 = max(t0, a1); t1 = min(t1, a2)
+                    }
+                    if abs(dy) < 1e-6 { if o.y < r.minY || o.y > r.maxY { continue } } else {
+                        var b1 = (r.minY - o.y) / dy, b2 = (r.maxY - o.y) / dy
+                        if b1 > b2 { swap(&b1, &b2) }
+                        t0 = max(t0, b1); t1 = min(t1, b2)
+                    }
+                    if t0 <= t1 && t0 < best { best = t0; hitIndex = i }
+                }
+                if hitIndex >= 0 {
+                    let b = Double(1 - best / range)
+                    lit[hitIndex] = max(lit[hitIndex], b)
+                }
+                // Let the light reach a little way into the square it lands on, so its face is lit.
+                let reach = hitIndex >= 0 ? best + 2 : best
+                outline.append(CGPoint(x: o.x + dx * reach, y: o.y + dy * reach))
+            }
+            if outline.count > 2 { light.addLines(outline); light.closeSubpath() }
+        }
+
+        // The lit floor around each ball.
+        ctx.drawLayer { l in
+            l.clip(to: light)
+            for o in sources {
+                l.fill(Path(full), with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: colors.ink.opacity(0.22), location: 0),
+                        .init(color: colors.ink.opacity(0.08), location: 0.4),
+                        .init(color: colors.ink.opacity(0), location: 1),
+                    ]), center: o, startRadius: 0, endRadius: range))
+                l.fill(Path(full), with: .radialGradient(
+                    Gradient(colors: [colors.accent.opacity(0.22), colors.accent.opacity(0)]),
+                    center: o, startRadius: 0, endRadius: 46))
+            }
+        }
+
+        if game.flash > 0 {
+            ctx.fill(Path(full), with: .color(colors.accent.opacity(game.flash * 0.12)))
+        }
+
+        // Squares: only as visible as the light on them, or all of them during a flare.
+        let flare = game.flareLeft > 0 ? min(1, game.flareLeft / 0.6) : 0
+        for (i, b) in game.blocks.enumerated() {
+            let seen = max(lit[i] > 0 ? min(1, 0.15 + pow(lit[i], 0.8)) : 0, flare * 0.9)
+            drawBlock(&ctx, b, light: seen)
+        }
+
+        drawMoving(&ctx)
     }
 }
 
