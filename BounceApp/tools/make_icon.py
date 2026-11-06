@@ -1,7 +1,7 @@
-"""Draws Bounce's app icons: one ball in the centre of the look's background, with depth.
+"""Draws Bounce's app icons: one square in the accent colour, in the centre of the look's background.
 
-The ball is lit from the top left (a soft highlight and a darker rim), with a small shine
-and a blurred shadow on the ground under it. Run from BounceApp/:  python3 tools/make_icon.py
+The square is lit from the top (a touch lighter at the top edge, deeper at the bottom), with a soft
+shadow under it, so it sits a little above the background. Run from BounceApp/:  python3 tools/make_icon.py
 """
 import json
 import os
@@ -38,41 +38,30 @@ def icon(bg_hex, ink_hex, accent_hex):
     t = (y / S)[..., None]
     img = mix(bg, mix(bg, ink, 0.07), t ** 1.6)
 
-    cx, cy, r = S / 2, S / 2 - 10, 200
+    half = 205                       # the square is 410 of 1024
+    cx, cy = S / 2, S / 2 - 12
 
-    # Shadow on the ground under the ball: a blurred ellipse in the ink colour.
-    sh = Image.new("L", (S, S), 0)
+    # Soft shadow under the square, in the ink colour.
     shp = np.zeros((S, S))
-    ex, ey, rx, ry = cx, cy + r + 58, r * 0.92, r * 0.2
-    shp[((x - ex) / rx) ** 2 + ((y - ey) / ry) ** 2 <= 1] = 255
-    sh = Image.fromarray(shp.astype(np.uint8)).filter(ImageFilter.GaussianBlur(34))
-    a = (np.asarray(sh, dtype=float) / 255 * 0.30)[..., None]
+    shp[(np.abs(x - cx) <= half - 10) & (np.abs(y - (cy + 34)) <= half - 6)] = 255
+    sh = Image.fromarray(shp.astype(np.uint8)).filter(ImageFilter.GaussianBlur(38))
+    a = (np.asarray(sh, dtype=float) / 255 * 0.26)[..., None]
     img = mix(img, ink, a)
 
-    # The ball: lit from the top left.
-    dx, dy = (x - cx) / r, (y - cy) / r
-    d2 = dx * dx + dy * dy
-    inside = d2 <= 1
-    nz = np.sqrt(np.clip(1 - d2, 0, 1))
-    lx, ly, lz = -0.45, -0.55, 0.70
-    n = np.sqrt(lx * lx + ly * ly + lz * lz)
-    lx, ly, lz = lx / n, ly / n, lz / n
-    lam = np.clip(dx * lx + dy * ly + nz * lz, 0, 1)[..., None]
-    light = mix(acc, np.array([255.0, 255, 255]), 0.38)
-    dark = acc * 0.62
-    ball = np.where(lam > 0.62, mix(acc, light, (lam - 0.62) / 0.38), mix(dark, acc, lam / 0.62))
-    # A little light bouncing back from the ground onto the bottom edge.
-    rim = np.clip((dy - 0.55) / 0.45, 0, 1)[..., None] * np.clip(1 - nz * 1.4, 0, 1)[..., None]
-    ball = mix(ball, mix(acc, bg, 0.4), rim * 0.45)
-    # Shine: a soft white spot.
-    hx, hy = cx - r * 0.38, cy - r * 0.42
-    sd = np.sqrt((x - hx) ** 2 + (y - hy) ** 2) / (r * 0.28)
-    shine = (np.clip(1 - sd, 0, 1) ** 2 * 0.55)[..., None]
-    ball = mix(ball, np.array([255.0, 255, 255]), shine)
+    # The square: accent, lighter at the top, deeper at the bottom.
+    ty = np.clip((y - (cy - half)) / (2 * half), 0, 1)[..., None]
+    top_c = mix(acc, np.array([255.0, 255, 255]), 0.16)
+    bot_c = acc * 0.86
+    sq = mix(top_c, bot_c, ty)
+    # A thin highlight along the top edge.
+    hl = (np.clip(1 - (y - (cy - half)) / 10, 0, 1) * 0.25)[..., None]
+    sq = mix(sq, np.array([255.0, 255, 255]), hl)
 
-    # Antialiased edge.
-    edge = np.clip((r - np.sqrt((x - cx) ** 2 + (y - cy) ** 2)) + 0.5, 0, 1)[..., None]
-    img = np.where(inside[..., None] | (edge > 0), mix(img, ball, edge), img)
+    # Antialiased edges.
+    ex = np.clip(half - np.abs(x - cx) + 0.5, 0, 1)
+    ey = np.clip(half - np.abs(y - cy) + 0.5, 0, 1)
+    cover = (ex * ey)[..., None]
+    img = mix(img, sq, cover)
     return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB")
 
 
@@ -95,5 +84,4 @@ if __name__ == "__main__":
         im = icon(bg, ink, acc)
         # Graphite is the main icon; the others are alternate icons chosen in Settings.
         write_set(f"{out}/AppIcon.appiconset" if i == 0 else f"{out}/AppIcon-{name}.appiconset", im)
-        write_set(f"{out}/IconPreview-{name}.imageset", im, "imageset")
         print("drew", name)

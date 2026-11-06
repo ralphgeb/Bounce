@@ -1,12 +1,14 @@
 import SwiftUI
 import QuartzCore
 
-/// One square in the wall. Tougher squares (2 or 3 hits) are darker; accent squares split the ball.
+/// One square in the wall. Tougher squares (2 or 3 hits) are darker; accent squares split the ball;
+/// outlined squares (blasters) make the paddle shoot for five seconds.
 struct Block {
     var rect: CGRect
     var hp: Int
     var max: Int
     var split: Bool
+    var blaster: Bool = false
     var hit: Double = 0      // flash when struck, fades out
     var age: Double = 0      // fades in when the row arrives
 }
@@ -56,7 +58,12 @@ final class Game {
     @ObservationIgnored private(set) var balls: [Ball] = []
     @ObservationIgnored private(set) var particles: [Particle] = []
     @ObservationIgnored private(set) var flash: Double = 0
+    @ObservationIgnored private(set) var bullets: [CGPoint] = []
+    /// Seconds of shooting left (from a blaster square).
+    @ObservationIgnored private(set) var shootLeft: Double = 0
+    @ObservationIgnored private var shotClock: Double = 0
     @ObservationIgnored var targetX: CGFloat?
+    let shootTime: Double = 5
 
     let cols = 9
     let gap: CGFloat = 5
@@ -79,7 +86,8 @@ final class Game {
         let changed = size != self.size
         self.size = size
         top = safeTop + 78
-        paddleY = size.height - max(safeBottom, 16) - 56
+        // High enough to leave room for a thumb under the paddle.
+        paddleY = size.height - max(safeBottom, 16) - 118
         paddleW = max(64, size.width * 0.24)
         let newCell = (size.width - side * 2 - gap * CGFloat(cols - 1)) / CGFloat(cols)
         if changed && phase == .ready { cell = newCell; paddleX = size.width / 2 }
@@ -113,7 +121,7 @@ final class Game {
 
     private func reset() {
         elapsed = 0; score = 0; lives = 3; run = 0; freshLife = false; newBest = false
-        particles = []; flash = 0
+        particles = []; flash = 0; bullets = []; shootLeft = 0
         paddleX = size.width / 2
         blocks = []
         for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH) }
@@ -173,10 +181,13 @@ final class Game {
             let roll = Double.random(in: 0..<1)
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
             // About one square in 30 is an accent square: break it and the ball splits in three.
-            let split = Double.random(in: 0..<1) < 0.034
-            if split { hp = 1 }
+            // About one in 35 is a blaster: break it and the paddle shoots for five seconds.
+            let roll2 = Double.random(in: 0..<1)
+            let split = roll2 < 0.034
+            let blaster = !split && roll2 < 0.034 + 0.029
+            if split || blaster { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
-            row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, split: split))
+            row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, split: split, blaster: blaster))
         }
         return row
     }
@@ -252,7 +263,7 @@ final class Game {
         paddleX = max(side / 2 + half, min(w - side / 2 - half, paddleX))
 
         // The wall drifts down, a little faster over time: endless.
-        let fall = (4.5 + elapsed * 0.12) * Double(size.height / 760)
+        let fall = (3.2 + elapsed * 0.07) * Double(size.height / 760)
         let dy = CGFloat(fall * dt)
         for i in blocks.indices { blocks[i].rect.origin.y += dy }
         nextRowY += dy
@@ -269,6 +280,30 @@ final class Game {
             for b in blocks where b.rect.maxY > cut { burst(b) }
             blocks.removeAll { $0.rect.maxY > cut }
             flash = 1
+        }
+
+        // Blaster: two shots from the ends of the paddle every 0.16 s.
+        if shootLeft > 0 {
+            shootLeft = max(0, shootLeft - dt)
+            shotClock -= dt
+            if shotClock <= 0 {
+                shotClock = 0.16
+                bullets.append(CGPoint(x: paddleX - half + 3, y: paddleY - paddleH / 2))
+                bullets.append(CGPoint(x: paddleX + half - 3, y: paddleY - paddleH / 2))
+            }
+        }
+        let shotSpeed = size.height * 1.3 * CGFloat(dt)
+        var k = bullets.count - 1
+        while k >= 0 {
+            bullets[k].y -= shotSpeed
+            let pt = bullets[k]
+            if let i = blocks.lastIndex(where: { $0.rect.insetBy(dx: -1, dy: 0).contains(pt) }) {
+                bullets.remove(at: k)
+                hit(i, ball: nil)
+            } else if pt.y < top - 30 {
+                bullets.remove(at: k)
+            }
+            k -= 1
         }
 
         // Balls
@@ -317,25 +352,7 @@ final class Game {
                         } else {
                             ball.v.dy *= -1; ball.p.y += ball.v.dy > 0 ? oy : -oy
                         }
-                        blocks[i].hp -= 1
-                        blocks[i].hit = 1
-                        if blocks[i].hp <= 0 {
-                            let b = blocks.remove(at: i)
-                            burst(b)
-                            score += b.max * chain
-                            chain = min(chain + 1, 9)
-                            run += 1
-                            Haptics.tap(.rigid, intensity: 0.5)
-                            // Twenty in a row without the paddle: an extra life (at most 5).
-                            if run % 20 == 0 {
-                                if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
-                                else { score += 50; show("+50") }
-                                Haptics.notify(.success)
-                            }
-                            if b.split { split(from: ball) }
-                        } else {
-                            Haptics.tap(.soft, intensity: 0.4)
-                        }
+                        hit(i, ball: ball)
                         break
                     }
                     i -= 1
@@ -356,6 +373,37 @@ final class Game {
                 if bi < balls.count { balls[bi] = ball }
             }
             bi -= 1
+        }
+    }
+
+    /// A ball or a shot hits block i. Only balls grow the score multiplier and the run of 20.
+    private func hit(_ i: Int, ball: Ball?) {
+        blocks[i].hp -= 1
+        blocks[i].hit = 1
+        guard blocks[i].hp <= 0 else {
+            Haptics.tap(.soft, intensity: 0.4)
+            return
+        }
+        let b = blocks.remove(at: i)
+        burst(b)
+        score += b.max * chain
+        Haptics.tap(.rigid, intensity: 0.5)
+        if ball != nil {
+            chain = min(chain + 1, 9)
+            run += 1
+            // Twenty in a row without the paddle: an extra life (at most 5).
+            if run % 20 == 0 {
+                if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
+                else { score += 50; show("+50") }
+                Haptics.notify(.success)
+            }
+        }
+        if b.split, let src = ball ?? balls.first(where: { !$0.stuck }) { split(from: src) }
+        if b.blaster {
+            shootLeft = shootTime
+            shotClock = 0
+            show("Blaster")
+            Haptics.notify(.success)
         }
     }
 

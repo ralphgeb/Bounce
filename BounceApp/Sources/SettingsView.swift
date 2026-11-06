@@ -19,10 +19,9 @@ struct SettingsView: View {
                             if iconFollowsLook { setIcon(look) }
                         } label: {
                             HStack(spacing: 14) {
-                                Image(look.previewImage)
-                                    .resizable()
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                                Rectangle()
+                                    .fill(look.accent.color)
+                                    .frame(width: 24, height: 24)
                                 Text(look.name).foregroundStyle(colors.ink)
                                 Spacer()
                                 if look.id == settings.lookID {

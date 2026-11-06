@@ -147,10 +147,22 @@ struct GameView: View {
 
         // Blocks: plain squares, darker the tougher they are. The same gap across and down.
         for b in game.blocks {
-            let alpha = b.split ? 1 : (b.hp >= 3 ? 1 : b.hp == 2 ? 0.6 : 0.2)
             let path = Path(b.rect)
-            ctx.fill(path, with: .color((b.split ? accent : ink).opacity(alpha * b.age)))
+            if b.blaster {
+                // Blaster: an accent outline with a small square in the middle.
+                ctx.stroke(Path(b.rect.insetBy(dx: 1.25, dy: 1.25)), with: .color(accent.opacity(b.age)), lineWidth: 2.5)
+                let m = b.rect.width * 0.3
+                ctx.fill(Path(b.rect.insetBy(dx: m, dy: m)), with: .color(accent.opacity(b.age)))
+            } else {
+                let alpha = b.split ? 1 : (b.hp >= 3 ? 1 : b.hp == 2 ? 0.6 : 0.2)
+                ctx.fill(path, with: .color((b.split ? accent : ink).opacity(alpha * b.age)))
+            }
             if b.hit > 0 { ctx.fill(path, with: .color(accent.opacity(b.hit * 0.7))) }
+        }
+
+        // Shots from the paddle.
+        for s in game.bullets {
+            ctx.fill(Path(CGRect(x: s.x - 1.5, y: s.y - 10, width: 3, height: 10)), with: .color(accent))
         }
 
         for p in game.particles {
@@ -160,6 +172,14 @@ struct GameView: View {
         // Paddle
         let pr = CGRect(x: game.paddleX - game.paddleW / 2, y: game.paddleY - game.paddleH / 2, width: game.paddleW, height: game.paddleH)
         ctx.fill(Path(roundedRect: pr, cornerRadius: game.paddleH / 2), with: .color(ink))
+        if game.shootLeft > 0 {
+            // The two cannons in the accent, and the time left as a thin line under the paddle.
+            for x in [pr.minX + 1, pr.maxX - 7] {
+                ctx.fill(Path(CGRect(x: x, y: pr.minY - 4, width: 6, height: 4)), with: .color(accent))
+            }
+            let f = game.shootLeft / game.shootTime
+            ctx.fill(Path(CGRect(x: pr.minX, y: pr.maxY + 6, width: pr.width * f, height: 2)), with: .color(accent.opacity(0.7)))
+        }
 
         // Balls: the accent dot, with a short fading trail.
         for ball in game.balls {

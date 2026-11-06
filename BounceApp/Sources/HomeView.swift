@@ -33,10 +33,10 @@ struct HomeView: View {
                 .foregroundStyle(colors.ink.opacity(0.5))
                 .frame(minHeight: 20)
                 .padding(.top, 30)
+            Spacer()
+            // Low on the screen, where the thumb is.
             OutlineButton(title: game.phase == .over ? "Again" : "Start", colors: colors) { game.start() }
-                .padding(.top, 22)
-            Spacer()
-            Spacer()
+                .padding(.bottom, 64)
         }
         .onAppear {
             dropped = false
@@ -70,15 +70,23 @@ struct HomeView: View {
 
     private var rules: some View {
         VStack(alignment: .leading, spacing: 10) {
-            rule(colors.accent, "Accent square splits the ball in three")
-            rule(colors.ink, "Skip the paddle to chain ×2, ×3, ×4")
-            rule(colors.ink.opacity(0.4), "Break 20 in a row for an extra life")
+            rule(Rectangle().fill(colors.accent), "Accent square splits the ball in three")
+            rule(blasterMark, "Outlined square: shoot for 5 seconds")
+            rule(Rectangle().fill(colors.ink), "Score multiplier: skip the paddle for ×2, ×3")
+            rule(Rectangle().fill(colors.ink.opacity(0.4)), "Break 20 in a row for an extra life")
         }
     }
 
-    private func rule(_ fill: Color, _ text: String) -> some View {
+    private var blasterMark: some View {
+        ZStack {
+            Rectangle().strokeBorder(colors.accent, lineWidth: 1.5)
+            Rectangle().fill(colors.accent).frame(width: 4, height: 4)
+        }
+    }
+
+    private func rule(_ mark: some View, _ text: String) -> some View {
         HStack(spacing: 10) {
-            Rectangle().fill(fill).frame(width: 12, height: 12)
+            mark.frame(width: 12, height: 12)
             Text(text).font(.system(size: 13)).foregroundStyle(colors.ink.opacity(0.6))
         }
     }

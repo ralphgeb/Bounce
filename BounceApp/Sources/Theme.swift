@@ -30,7 +30,6 @@ struct Look: Identifiable, Hashable {
 
     /// The alternate icon's name in the asset catalog (Graphite is the main icon).
     var iconName: String? { id == "graphite" ? nil : "AppIcon-\(name)" }
-    var previewImage: String { "IconPreview-\(name)" }
 
     static let all: [Look] = [
         Look(id: "graphite", name: "Graphite",
