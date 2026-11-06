@@ -1,6 +1,21 @@
 # Bounce
 
-A minimal block breaker for iPhone, in the same style as Halo and Scout: the same looks, type and quiet interface.
+Minimal games for iPhone, in the same style as Halo and Scout: the same looks, type and quiet interface.
+The app opens on a menu with one panel per game:
+
+- **Bounce**: a block breaker with an endless wall (in the chosen look, light or dark).
+- **Maze**: find your way through a huge maze in the dark with a cone of light (always dark).
+
+On every landing page, drag anywhere and the logo's squares stretch after your finger and spring back.
+
+## Maze
+
+- You are the accent square in the dark. **Swipe** up, down, left or right: your light turns that way and you slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
+- **The light** is a cone in front of you (about 70° wide, 7.5 tiles long) and a small glow around you. Rays stop at walls, so walls throw shadows; walls you've lit stay faintly in memory.
+- **The way out** is an accent circle with its own glow, the farthest spot from where you start. You only see it once your light reaches it.
+- **Levels**: level 1 is 10 × 14 rooms; each level adds 3 across and 4 down, with a few loops so there's more than one way. Every player gets the same maze for each level. Records: the deepest level and your fastest time for each.
+
+## Bounce
 
 - **The game**: move the paddle with your finger, keep the ball up, and break the wall of squares that keeps drifting down. New rows keep coming, so a game lasts as long as you do; the ball, the wall and the tougher squares all speed up over time.
 - **Squares**: plain squares in nine columns, with the same gap across and down. Pale squares take one hit, mid-tone two, solid three.
@@ -11,10 +26,11 @@ A minimal block breaker for iPhone, in the same style as Halo and Scout: the sam
   - **Circle** (every 150 or so): a big circle, as wide as a square, that clears every square on the screen.
   - Special squares caught in a clear go off too.
 - **Score multiplier**: every block the ball breaks before it comes back to the paddle raises it (×2, ×3, up to ×9). Twenty in a row earns an extra life (at most 5; +50 points when you're full).
+- Power-up squares never appear in the two starting rows nearest the paddle.
 - **Lives**: three to start. You lose one when your last ball falls, or when the wall reaches the line above your paddle (that also knocks the bottom three rows away).
-- **Landing page**: six squares over B O U N C E (the accent over the O), the four special squares and what they do, and Start low on the screen. After a game it shows your score, time and best, and Again.
+- **Landing page** (with a back arrow to the menu): six squares over B O U N C E (the accent over the O), the four special squares and what they do, and Start low on the screen. After a game it shows your score, time and best, and Again.
 - **Paddle**: sits well above the bottom of the screen, leaving room for your thumb under it.
-- **Settings** (the half circle at the top right): Automatic, Light or Dark at the top; five looks (Graphite, Ocean, Sky, Blush, Forest) as one line of accent squares; the app icon can follow the look (off at first); haptics; your best score and longest game.
+- **Settings** (the half circle at the top right of the menu): Automatic, Light or Dark at the top; five looks (Graphite, Ocean, Sky, Blush, Forest) as one line of accent squares; the app icon can follow the look (off at first); haptics; your best score and longest game.
 - **App icon**: one square in the accent colour in the centre of the look's background, a touch lighter at the top, with a soft shadow under it. `BounceApp/tools/make_icon.py` draws them.
 
 SwiftUI, iOS 17+, no third-party libraries, nothing collected.
@@ -25,7 +41,10 @@ SwiftUI, iOS 17+, no third-party libraries, nothing collected.
 BounceApp/
   project.yml        XcodeGen project
   Sources/
-    BounceApp.swift    entry point; the landing page and the game share one screen
+    BounceApp.swift    entry point: the menu and each game's screens
+    Menu/              the menu with a panel per game
+    Common/            the stretchy logo, the back arrow, the frame timer
+    Maze/              Maze: the maze and the light, the game, drawing, its screens
     Game.swift         the board, physics, lives, chains and the display link
     GameView.swift     the canvas, the score, lives and pause
     HomeView.swift     the landing page

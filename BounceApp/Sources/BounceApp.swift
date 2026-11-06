@@ -12,46 +12,77 @@ struct BounceApp: App {
     }
 }
 
-/// The landing page and the game share one screen: the game draws behind, the landing sits on top.
+/// The menu, and each game's landing page and board. Bounce follows the look's light or dark;
+/// Maze is always dark.
 struct RootView: View {
+    @State private var screen: Screen = .menu
     @State private var game = Game()
+    @State private var maze = MazeGame()
     @State private var settings = Settings.shared
     @State private var showSettings = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
 
+    private var playing: Bool {
+        switch screen {
+        case .bounce: return game.phase == .playing || game.phase == .paused
+        case .maze: return maze.phase != .ready
+        case .menu: return false
+        }
+    }
+
     var body: some View {
         let c = settings.colors(scheme)
+        let dark = settings.darkColors
         GeometryReader { geo in
             ZStack {
-                c.background.ignoresSafeArea()
+                (screen == .maze ? dark.background : c.background).ignoresSafeArea()
 
-                if game.phase == .playing || game.phase == .paused {
-                    GameView(game: game, colors: c, safeTop: geo.safeAreaInsets.top, safeBottom: geo.safeAreaInsets.bottom)
+                switch screen {
+                case .menu:
+                    MenuView(colors: c, dark: dark, open: { s in screen = s }, showSettings: $showSettings)
                         .transition(.opacity)
-                } else {
-                    HomeView(game: game, colors: c, showSettings: $showSettings)
-                        .transition(.opacity)
+                case .bounce:
+                    Group {
+                        if game.phase == .playing || game.phase == .paused {
+                            GameView(game: game, colors: c, safeTop: geo.safeAreaInsets.top, safeBottom: geo.safeAreaInsets.bottom)
+                        } else {
+                            HomeView(game: game, colors: c, onBack: { screen = .menu })
+                        }
+                    }
+                    .transition(.opacity)
+                case .maze:
+                    Group {
+                        if maze.phase == .ready {
+                            MazeHome(game: maze, colors: dark, onBack: { screen = .menu })
+                        } else {
+                            MazeView(game: maze, colors: dark)
+                        }
+                    }
+                    .environment(\.colorScheme, .dark)
+                    .transition(.opacity)
                 }
             }
             .onAppear { layout(geo) }
             .onChange(of: geo.size) { layout(geo) }
         }
+        .animation(.easeInOut(duration: 0.3), value: screen)
         .animation(.easeInOut(duration: 0.25), value: game.phase)
-        .statusBarHidden(game.phase == .playing || game.phase == .paused)
-        .persistentSystemOverlays(game.phase == .playing ? .hidden : .automatic)
+        .animation(.easeInOut(duration: 0.3), value: maze.phase == .ready)
+        .statusBarHidden(playing)
+        .persistentSystemOverlays(playing ? .hidden : .automatic)
         .defersSystemGestures(on: .bottom)
         .sheet(isPresented: $showSettings) {
             SettingsView(colors: c)
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { game.pause() }
+            if phase != .active { game.pause(); maze.pause() }
         }
     }
 
     private func layout(_ geo: GeometryProxy) {
-        // The canvas fills the whole screen, so add the safe area back to the size.
+        // Bounce's canvas fills the whole screen, so add the safe area back to the size.
         let i = geo.safeAreaInsets
         let full = CGSize(width: geo.size.width + i.leading + i.trailing, height: geo.size.height + i.top + i.bottom)
         game.layout(size: full, safeTop: i.top, safeBottom: i.bottom)

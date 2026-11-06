@@ -93,6 +93,9 @@ final class Settings {
     var haptics: Bool { didSet { defaults.set(haptics, forKey: "haptics") } }
     var best: Int { didSet { defaults.set(best, forKey: "best") } }
     var longest: Double { didSet { defaults.set(longest, forKey: "longest") } }
+    /// Maze: the deepest level reached, and the fastest time for each level ("1": seconds).
+    var mazeDeepest: Int { didSet { defaults.set(mazeDeepest, forKey: "maze.deepest") } }
+    var mazeTimes: [String: Double] { didSet { defaults.set(mazeTimes, forKey: "maze.times") } }
 
     private init() {
         lookID = defaults.string(forKey: "look") ?? "graphite"
@@ -100,9 +103,16 @@ final class Settings {
         haptics = defaults.object(forKey: "haptics") as? Bool ?? true
         best = defaults.integer(forKey: "best")
         longest = defaults.double(forKey: "longest")
+        mazeDeepest = defaults.integer(forKey: "maze.deepest")
+        mazeTimes = defaults.dictionary(forKey: "maze.times") as? [String: Double] ?? [:]
     }
 
     var look: Look { Look.all.first { $0.id == lookID } ?? Look.all[0] }
+
+    /// Maze is always played in the dark: the look's dark colours.
+    var darkColors: Colors {
+        Colors(ink: look.dark.ink.color, background: look.dark.background.color, accent: look.accent.color)
+    }
 
     func colors(_ scheme: ColorScheme) -> Colors {
         let p = scheme == .dark ? look.dark : look.light

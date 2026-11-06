@@ -133,7 +133,8 @@ final class Game {
         particles = []; flash = 0; bullets = []; shootLeft = 0; sweeps = []
         paddleX = size.width / 2
         blocks = []
-        for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH) }
+        // The two starting rows nearest the paddle are plain: power-ups start from the third row up.
+        for i in 0..<4 { blocks += makeRow(y: top + CGFloat(i) * rowH, specials: i < 2) }
         nextRowY = top
         serve()
     }
@@ -179,7 +180,7 @@ final class Game {
 
     // MARK: The wall
 
-    private func makeRow(y: CGFloat) -> [Block] {
+    private func makeRow(y: CGFloat, specials: Bool = true) -> [Block] {
         // Each row leaves 1 to 3 gaps, and blocks get tougher the longer you last.
         let level = Double(Int(elapsed / 25))
         let holes = Int.random(in: 1...3)
@@ -191,7 +192,7 @@ final class Game {
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
             // Special squares, at random, roughly: a row or column clearer every 20 squares, a split
             // every 50, a blaster every 100 and a screen-clearing circle every 150.
-            let k = Self.randomKind()
+            let k = specials ? Self.randomKind() : .plain
             if k != .plain { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
             row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, kind: k))

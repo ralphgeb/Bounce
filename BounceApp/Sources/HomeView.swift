@@ -4,29 +4,18 @@ import SwiftUI
 struct HomeView: View {
     let game: Game
     let colors: Colors
-    @Binding var showSettings: Bool
+    let onBack: () -> Void
 
     @State private var dropped = false
+    @State private var drag: CGSize = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private let letters = Array("BOUNCE")
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button { showSettings = true } label: {
-                    Image(systemName: "circle.lefthalf.filled")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(colors.ink.opacity(0.45))
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Settings")
-            }
-            .padding(.horizontal, 12)
+            BackBar(ink: colors.ink, action: onBack)
 
             Spacer()
-            logo
+            ElasticLogo(word: "BOUNCE", fills: logoFills, ink: colors.ink, drag: drag, dropped: dropped)
             rules.padding(.top, 34)
             // The last score sits a third of the way from the rules down to the button.
             Spacer(minLength: 16)
@@ -40,34 +29,16 @@ struct HomeView: View {
             OutlineButton(title: game.phase == .over ? "Again" : "Start", colors: colors) { game.start() }
                 .padding(.bottom, 64)
         }
+        .elasticDrag($drag)
         .onAppear {
             dropped = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
         }
     }
 
-    /// Six squares, one over each letter: the main colour, the accent over the O, then lighter shades.
-    private var logo: some View {
-        let fills: [Color] = [colors.ink, colors.accent, colors.ink.opacity(0.72), colors.ink.opacity(0.48), colors.ink.opacity(0.28), colors.ink.opacity(0.12)]
-        return HStack(spacing: 10) {
-            ForEach(0..<6, id: \.self) { i in
-                VStack(spacing: 18) {
-                    Rectangle()
-                        .fill(fills[i])
-                        .frame(width: 34, height: 34)
-                        .offset(y: dropped ? 0 : -80)
-                        .opacity(dropped ? 1 : 0)
-                        .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55).delay(Double(i) * 0.07), value: dropped)
-                    Text(String(letters[i]))
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(colors.ink)
-                }
-                .frame(width: 40)
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel("Bounce")
-        .accessibilityAddTraits(.isHeader)
+    /// The main colour, the accent over the O, then lighter shades.
+    private var logoFills: [Color] {
+        [colors.ink, colors.accent, colors.ink.opacity(0.72), colors.ink.opacity(0.48), colors.ink.opacity(0.28), colors.ink.opacity(0.12)]
     }
 
     /// The special squares, drawn as they look in the game.

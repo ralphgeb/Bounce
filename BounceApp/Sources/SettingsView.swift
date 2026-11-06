@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Looks, light and dark, haptics, the app icon, and your records.
+/// Light and dark, looks, the app icon, haptics, and your records in both games.
 struct SettingsView: View {
     let colors: Colors
     @State private var settings = Settings.shared
@@ -60,9 +60,15 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
-                Section("Records") {
+                Section("Bounce") {
                     LabeledContent("Best score", value: "\(settings.best)")
                     LabeledContent("Longest game", value: settings.longest > 0 ? formatTime(settings.longest) : "–")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
+                Section("Maze") {
+                    LabeledContent("Deepest level", value: settings.mazeDeepest > 0 ? "\(settings.mazeDeepest)" : "–")
+                    LabeledContent("Fastest level 1", value: settings.mazeTimes["1"].map(formatTime) ?? "–")
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
