@@ -121,9 +121,15 @@ final class HueGame {
         order.swapAt(a, b)
         swaps += 1
         coach.did(.swap)
-        let right = (order[a] == a ? 1 : 0) + (order[b] == b ? 1 : 0)
+        let right = (isRight(a) ? 1 : 0) + (isRight(b) ? 1 : 0)
         Haptics.tap(right > 0 ? .rigid : .light, intensity: right > 0 ? 0.8 : 0.5)
-        if order.enumerated().allSatisfy({ $0.offset == $0.element }) { solved() }
+        if order.indices.allSatisfy(isRight) { solved() }
+    }
+
+    /// The colour at this place is the one that belongs there (two squares can share a colour).
+    private func isRight(_ place: Int) -> Bool {
+        let a = colors[order[place]], b = colors[place]
+        return abs(a.r - b.r) + abs(a.g - b.g) + abs(a.b - b.b) < 0.006
     }
 
     private func solved() {

@@ -70,7 +70,7 @@ enum HueLevels {
         HueLevel(corners: [.light, .accent, .second, .dark], contrast: 1.0, fixed: .border, shuffled: 12),
         HueLevel(corners: [.accent, .light, .dark, .second], contrast: 1.0, fixed: .border, shuffled: nil),
         HueLevel(corners: [.light, .accent, .dark, .accent], contrast: 0.95, fixed: .alternate, shuffled: nil),
-        HueLevel(corners: [.accent, .second, .second, .accent], contrast: 0.9, fixed: .alternate, shuffled: nil),
+        HueLevel(corners: [.accentSoft, .second, .accent, .dark], contrast: 0.9, fixed: .alternate, shuffled: nil),
         HueLevel(corners: [.light, .second, .accent, .dark], contrast: 0.85, fixed: .cross, shuffled: nil),
         HueLevel(corners: [.accent, .light, .accent, .dark], contrast: 0.8, fixed: .cross, shuffled: nil),
         HueLevel(corners: [.second, .accent, .light, .second], contrast: 0.72, fixed: .anchors, shuffled: nil),
