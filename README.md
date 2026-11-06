@@ -4,25 +4,25 @@ Minimal games for iPhone, in the same style as Halo and Scout: the same looks, t
 The app opens on a menu of three games, one section each, split by thin lines:
 
 - **Bounce**: a block breaker with an endless wall.
-- **Maze**: find your way through a huge maze in pitch black, by the light you give off.
+- **Maze**: find your way through 20 ever bigger mazes in pitch black, by the light you give off.
 - **Switch**: a match-three of shades, with the same special shapes as Bounce.
 
-On the menu and every landing page, drag anywhere and the logos' squares stretch after your finger and spring back.
+On the menu, drag in a game's section and its logo stretches after your finger and springs back (the others barely move); the same on every landing page. Each landing page has the settings button at the top right.
 
 ## Maze
 
-- Everything is pitch black. You are the accent square, and light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
+- Pitch black in dark mode, pitch white in light mode. You are the accent square, and light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, corners included, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
 - **Swipe** up, down, left or right to slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
-- **Dots**: tap to drop a small dot where you stand (30 a level); tap on it again to pick it up. Your light shows them when you come back, so you know you've been there.
-- **The way out** is an accent circle with its own glow, the farthest spot from where you start.
-- **Levels**: level 1 is 10 × 14 rooms; each level adds 3 across and 4 down, with a few loops. Every player gets the same maze for each level. Records: the deepest level and your fastest time for each.
+- **Dots**: tap to drop a dot where you stand (30 a level); tap on it again to pick it up. Dots stay where you left them, glowing softly, brighter in your light.
+- **The way out** is an accent circle with its own glow.
+- **20 levels**, each bigger and harder: level 1 is 21 x 29 tiles with the way out about 160 steps away and 17 dead ends; level 20 is 97 x 143 tiles, about 650 steps and 420 dead ends. Later levels branch more, with a few more loops. Every player gets the same mazes. [All 20 levels](docs/maze-levels.png) (drawn by `BounceApp/tools/maze_levels.py`, which uses the same generator and random numbers as the app). Records: the deepest level, the fastest time for each, and whether you've made it out of level 20.
 - Settings › Maze › **Show the walls** draws every wall faintly, for trying things out.
 
 ## Switch
 
-- A 7 × 8 board of squares in five shades (four of the main colour and the accent). **Swipe** a square to swap it with its neighbour; three or more of a shade in a line clear, the rest fall, and new squares drop in. Chains score ×2, ×3…
-- **Powers**, in the shade of the square they're on: **four in a line** makes a line clearer (cut corners and a line across clears the row, a line down clears the column), **an L or a T** makes a circle that clears the squares around it, **five in a line** makes a diamond that clears every square of its shade. They go off when they're part of a line or caught in another power, and now and then one turns up on its own.
-- **30 moves** a game; the best score is kept.
+- A 7 x 8 board of squares in five shades: the main colour at 90%, 65%, 40% and 15%, and the accent. **Swipe** a square to swap it with its neighbour; three or more of a shade in a line clear, the rest fall, and new squares drop in. Chains score x2, x3…
+- **Powers**, in the shade of the square they're on: **four across** makes a row clearer (cut corners, line across), **four down** a column clearer (line down), **five in a line** a circle that clears the squares around it, and **two lines at once** a diamond that clears every square of its shade. A diamond also turns up after every 12 squares cleared, and now and then a line clearer or circle turns up on its own.
+- **No limit on moves**; end the game from pause to keep your score. **Hint** shows one move that works.
 
 ## Bounce
 

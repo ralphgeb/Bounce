@@ -78,10 +78,15 @@ struct MazeView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Level").bounceLabel(colors)
-                Text("\(game.level)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(colors.ink)
-                    .contentTransition(.numericText())
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(game.level)")
+                        .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(colors.ink)
+                        .contentTransition(.numericText())
+                    Text("/\(Maze.levels)")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(colors.ink.opacity(0.35))
+                }
                 HStack(spacing: 5) {
                     Circle().fill(colors.accent).frame(width: 6, height: 6)
                     Text("\(game.dotsLeft)")
@@ -120,7 +125,7 @@ struct MazeView: View {
 
     private var paused: some View {
         ZStack {
-            Color.black.opacity(0.9).ignoresSafeArea()
+            colors.background.opacity(0.9).ignoresSafeArea()
             VStack(spacing: 26) {
                 Text("Paused")
                     .font(.system(size: 12, weight: .semibold))
@@ -137,11 +142,12 @@ struct MazeView: View {
     }
 }
 
-/// The Maze landing page: four squares over M A Z E, the light sweeping behind, and Start.
+/// The Maze landing page: four squares over M A Z E, how to play, and Start.
 struct MazeHome: View {
     let game: MazeGame
     let colors: Colors
     let onBack: () -> Void
+    let onSettings: () -> Void
 
     @State private var dropped = false
     @State private var drag: CGSize = .zero
@@ -149,17 +155,8 @@ struct MazeHome: View {
 
     var body: some View {
         ZStack {
-            MazePreview(colors: colors, tilesAcross: 8, strength: 0.6)
-                .ignoresSafeArea()
-                .overlay(
-                    LinearGradient(colors: [Color.black.opacity(0.1), Color.black.opacity(0.7), Color.black.opacity(0.1)],
-                                   startPoint: .top, endPoint: .bottom)
-                        .ignoresSafeArea()
-                )
-                .allowsHitTesting(false)
-
             VStack(spacing: 0) {
-                BackBar(ink: colors.ink, action: onBack)
+                BackBar(ink: colors.ink, settings: onSettings, action: onBack)
                 Spacer()
                 ElasticLogo(word: "MAZE", fills: [colors.ink, colors.accent, colors.ink.opacity(0.5), colors.ink.opacity(0.22)],
                             ink: colors.ink, drag: drag, dropped: dropped)
@@ -187,7 +184,7 @@ struct MazeHome: View {
             rule(Rectangle().fill(colors.accent).frame(width: 12, height: 12), "You. Swipe to slide to the next turning")
             rule(glowMark, "Your light shines all around. Walls cast shadows")
             rule(Circle().fill(colors.accent).frame(width: 5, height: 5), "Tap to drop a dot, tap again to pick it up")
-            rule(goalMark, "Reach the glow to go one level deeper")
+            rule(goalMark, "Reach the glow to go deeper. 20 levels")
         }
     }
 
@@ -216,6 +213,9 @@ struct MazeHome: View {
 
     private var result: String {
         let s = Settings.shared
+        if let r = game.lastRun, r.level >= Maze.levels, s.mazeFinished, game.newRecord {
+            return "Out of all 20 levels · \(formatTime(r.time))"
+        }
         if let r = game.lastRun {
             let deepest = max(s.mazeDeepest, r.level)
             return r.level >= deepest && game.newRecord

@@ -21,7 +21,7 @@ struct SwitchLayout {
     }
 }
 
-/// Playing Switch: the board, the score, moves left and best.
+/// Playing Switch: the board, the score and best, and a hint button.
 struct SwitchView: View {
     let game: SwitchGame
     let colors: Colors
@@ -66,15 +66,21 @@ struct SwitchView: View {
 
                 VStack(spacing: 0) {
                     hud
-                    VStack(spacing: 2) {
-                        Text("\(game.moves)")
-                            .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(game.moves <= 5 ? colors.accent : colors.ink)
-                            .contentTransition(.numericText())
-                        Text("Moves").bounceLabel(colors)
-                    }
-                    .padding(.top, 4)
                     Spacer()
+                    // One move that works, when you're stuck.
+                    Button {
+                        game.showHint()
+                    } label: {
+                        Text("Hint")
+                            .font(.system(size: 12, weight: .semibold))
+                            .tracking(3)
+                            .textCase(.uppercase)
+                            .foregroundStyle(colors.ink.opacity(0.55))
+                            .frame(width: 110, height: 40)
+                            .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.25), lineWidth: 1))
+                            .contentShape(Rectangle())
+                    }
+                    .padding(.bottom, 36)
                 }
 
                 if let t = game.toast {
@@ -180,9 +186,21 @@ struct SwitchView: View {
         // Pieces above the board are hidden until they fall in.
         ctx.drawLayer { l in
             l.clip(to: Path(CGRect(x: L.origin.x - 20, y: L.origin.y, width: w + 40, height: h + 40)))
+            let hinted: Set<Int> = game.hint.map { h in Set([game.grid[h.a]?.id ?? -1, game.grid[h.b]?.id ?? -1]) } ?? Set<Int>()
+            let beat = game.hint.map { 1 + 0.08 * sin($0.life * 14) } ?? 1
             for g in game.grid.compactMap({ $0 }) {
-                let scale = g.grow * (game.pressed != nil && game.grid[game.pressed!]?.id == g.id ? 0.86 : 1)
+                var scale = g.grow * (game.pressed != nil && game.grid[game.pressed!]?.id == g.id ? 0.86 : 1)
+                if hinted.contains(g.id) { scale *= beat }
                 piece(&l, g, L, gap: gap, scale: scale, alpha: 1)
+            }
+            // The hint: an accent outline around the two squares to swap.
+            if let h = game.hint {
+                let a = h.a, b = h.b
+                let x0 = min(a % game.cols, b % game.cols), y0 = min(a / game.cols, b / game.cols)
+                let x1 = max(a % game.cols, b % game.cols), y1 = max(a / game.cols, b / game.cols)
+                let r = CGRect(x: L.origin.x + CGFloat(x0) * C, y: L.origin.y + CGFloat(y0) * C,
+                               width: CGFloat(x1 - x0 + 1) * C, height: CGFloat(y1 - y0 + 1) * C)
+                l.stroke(Path(r), with: .color(colors.accent.opacity(min(1, h.life * 2))), lineWidth: 2)
             }
             for g in game.dying {
                 piece(&l, g, L, gap: gap, scale: 1 + 0.35 * (1 - g.fade), alpha: g.fade)
@@ -198,10 +216,11 @@ struct SwitchView: View {
 
     private func shadeColor(_ s: Int) -> Color {
         switch s {
-        case 0: return colors.ink
-        case 1: return colors.ink.opacity(0.62)
-        case 2: return colors.ink.opacity(0.36)
-        case 3: return colors.ink.opacity(0.16)
+        // Even steps of the main colour, from 90% down to 15%, and the accent.
+        case 0: return colors.ink.opacity(0.9)
+        case 1: return colors.ink.opacity(0.65)
+        case 2: return colors.ink.opacity(0.4)
+        case 3: return colors.ink.opacity(0.15)
         default: return colors.accent
         }
     }
@@ -246,6 +265,7 @@ struct SwitchHome: View {
     let game: SwitchGame
     let colors: Colors
     let onBack: () -> Void
+    let onSettings: () -> Void
 
     @State private var dropped = false
     @State private var drag: CGSize = .zero
@@ -253,10 +273,10 @@ struct SwitchHome: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            BackBar(ink: colors.ink, action: onBack)
+            BackBar(ink: colors.ink, settings: onSettings, action: onBack)
             Spacer()
             ElasticLogo(word: "SWITCH",
-                        fills: [colors.ink.opacity(0.62), colors.ink, colors.ink.opacity(0.16), colors.accent, colors.ink.opacity(0.36), colors.ink],
+                        fills: [colors.ink.opacity(0.65), colors.ink.opacity(0.9), colors.ink.opacity(0.15), colors.accent, colors.ink.opacity(0.4), colors.ink.opacity(0.9)],
                         ink: colors.ink, drag: drag, dropped: dropped)
             rules.padding(.top, 34)
             Spacer(minLength: 16)
@@ -279,10 +299,10 @@ struct SwitchHome: View {
     private var rules: some View {
         VStack(alignment: .leading, spacing: 12) {
             rule(threeMark, "Swipe to swap. Line up three of a shade")
-            rule(lineMark(across: true), "Clears its row · four across")
-            rule(lineMark(across: false), "Clears its column · four down")
-            rule(bombMark, "Clears the squares around it · an L or a T")
-            rule(diamondMark, "Clears every square of its shade · five")
+            rule(lineMark(across: true), "Four across: clears its row")
+            rule(lineMark(across: false), "Four down: clears its column")
+            rule(bombMark, "Five in a line: clears the squares around it")
+            rule(diamondMark, "Two lines at once: clears every square of its shade")
         }
     }
 
@@ -325,7 +345,7 @@ struct SwitchHome: View {
 
     private var result: String {
         let best = Settings.shared.switchBest
-        guard let s = game.lastScore else { return best > 0 ? "Best \(best) · 30 moves" : "30 moves" }
+        guard let s = game.lastScore else { return best > 0 ? "Best \(best)" : " " }
         return game.newBest ? "New best · \(s)" : "\(s) · best \(best)"
     }
 }

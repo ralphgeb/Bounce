@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Draws a maze around the player. Everything is pitch black except what your light reaches:
+/// Draws a maze around the player. Everything is pitch black (pitch white in light mode) except what your light reaches:
 /// the floor glows faintly, walls light up by how close they are, and they throw shadows behind them.
 enum MazeRenderer {
     struct Scene {
@@ -25,7 +25,7 @@ enum MazeRenderer {
     static func draw(_ ctx: inout GraphicsContext, size: CGSize, scene s: Scene, colors c: Colors) {
         let T = s.tile
         let full = CGRect(origin: .zero, size: size)
-        ctx.fill(Path(full), with: .color(.black))
+        ctx.fill(Path(full), with: .color(c.background))
 
         let me = CGPoint(x: size.width / 2, y: size.height / 2)
         let origin = CGPoint(x: me.x - s.pos.x * T, y: me.y - s.pos.y * T)
@@ -75,16 +75,19 @@ enum MazeRenderer {
             ctx.fill(p, with: .color(c.ink.opacity(pow(b, 1.5) * 0.92 * k)))
         }
 
-        // Dots you dropped, when your light finds them again.
+        // Dots you dropped stay where you left them, glowing softly; brighter when your light is on them.
         for key in s.dots {
             let x = key % 20_000 - 16, y = key / 20_000 - 16
+            guard x >= x0, x <= x1, y >= y0, y <= y1 else { continue }
             let p = screen(CGPoint(x: Double(x) + 0.5, y: Double(y) + 0.5))
-            guard light.contains(p) else { continue }
+            let inLight = light.contains(p)
             let d = hypot(Double(p.x - me.x), Double(p.y - me.y)) / Double(reach)
-            let a = max(0.25, 1 - d)
-            let r = T * 0.085
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - r * 3, y: p.y - r * 3, width: r * 6, height: r * 6)),
-                     with: .radialGradient(Gradient(colors: [c.accent.opacity(0.35 * a), c.accent.opacity(0)]), center: p, startRadius: 0, endRadius: r * 3))
+            let a = inLight ? max(0.6, 1 - d * 0.5) : 0.45
+            let pulse = 1 + 0.12 * sin(s.time * 2.2 + Double(key % 7))
+            let r = T * 0.12
+            let glow = r * 4.2 * pulse
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - glow, y: p.y - glow, width: glow * 2, height: glow * 2)),
+                     with: .radialGradient(Gradient(colors: [c.accent.opacity(0.42 * a), c.accent.opacity(0)]), center: p, startRadius: 0, endRadius: glow))
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(a)))
         }
 
@@ -124,33 +127,6 @@ enum MazeRenderer {
 
         if s.flash > 0 {
             ctx.fill(Path(full), with: .color(c.accent.opacity(s.flash * 0.22)))
-        }
-    }
-}
-
-/// A small maze lit from the middle, the light gently breathing: behind the Maze landing page.
-struct MazePreview: View {
-    let colors: Colors
-    var tilesAcross: CGFloat = 9
-    var strength: Double = 1
-
-    private static let maze = Maze.generate(level: 0)
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { tl in
-            Canvas { ctx, size in
-                let t = tl.date.timeIntervalSinceReferenceDate
-                let m = Self.maze
-                let o = CGPoint(x: Double(m.start.x) + 0.5, y: Double(m.start.y) + 0.5)
-                let range = 5 * (1 + 0.04 * sin(t * 1.3))
-                var lit: [Int: Double] = [:]
-                let light = Lighting.cast(m, from: o, angle: 0, halfAngle: .pi, range: range, rays: 240, lit: &lit)
-                let scene = MazeRenderer.Scene(maze: m, pos: o, light: light, lit: lit, range: range,
-                                               tile: size.width / tilesAcross, time: t, showGoal: false,
-                                               lightStrength: strength)
-                MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
-            }
         }
     }
 }

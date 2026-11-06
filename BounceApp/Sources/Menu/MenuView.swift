@@ -2,14 +2,15 @@ import SwiftUI
 
 enum Screen { case menu, bounce, maze, switcher }
 
-/// The main menu: three games, one section each, split by thin lines. Drag anywhere and every
-/// logo stretches and springs back.
+/// The main menu: three games, one section each, split by thin lines. Drag in a section and its
+/// logo stretches after your finger and springs back; the other two barely move.
 struct MenuView: View {
     let colors: Colors
     let open: (Screen) -> Void
     @Binding var showSettings: Bool
 
     @State private var drag: CGSize = .zero
+    @State private var active: Int?
     @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -17,7 +18,6 @@ struct MenuView: View {
         let c = colors
         VStack(spacing: 0) {
             HStack {
-                Text("Games").bounceLabel(c)
                 Spacer()
                 Button { showSettings = true } label: {
                     Image(systemName: "circle.lefthalf.filled")
@@ -45,7 +45,6 @@ struct MenuView: View {
                     line: "Line up three of a shade",
                     record: Settings.shared.switchBest > 0 ? "Best \(Settings.shared.switchBest)" : nil)
         }
-        .elasticDrag($drag)
         .onAppear {
             appeared = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8)) { appeared = true }
@@ -63,7 +62,8 @@ struct MenuView: View {
         } label: {
             VStack(spacing: 16) {
                 ElasticLogo(word: word, fills: fills, ink: colors.ink, squareSize: 26, letterSize: 21,
-                            drag: drag, dropped: appeared)
+                            drag: active == index ? drag : CGSize(width: drag.width * 0.1, height: drag.height * 0.1),
+                            dropped: appeared)
                 HStack(spacing: 8) {
                     Text(line)
                         .font(.system(size: 13))
@@ -84,6 +84,11 @@ struct MenuView: View {
             .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8).delay(Double(index) * 0.08), value: appeared)
         }
         .buttonStyle(SectionPress(colors: colors))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 2)
+                .onChanged { v in active = index; drag = v.translation }
+                .onEnded { _ in drag = .zero }
+        )
         .accessibilityLabel("\(word.capitalized). \(line)")
     }
 }

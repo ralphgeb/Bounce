@@ -21,8 +21,8 @@ struct Gem {
 }
 
 /// Switch: swipe a square to swap it with its neighbour; three or more of a shade in a line clear.
-/// Four in a line makes a line clearer, five a diamond, an L or a T a circle; powers also turn up
-/// on their own now and then. Thirty moves to score as much as you can.
+/// Four in a line makes a row or column clearer, five a circle. Two lines at once make a diamond,
+/// and a diamond also turns up after every 12 squares cleared. No limit on moves; a hint when stuck.
 @MainActor
 @Observable
 final class SwitchGame {
@@ -38,11 +38,14 @@ final class SwitchGame {
     let cols = 7
     let rows = 8
     let shades = 5
-    let startMoves = 30
 
     private(set) var phase: Phase = .ready
     private(set) var score = 0
-    private(set) var moves = 30
+    private(set) var moves = 0           // moves made
+    /// A move to show when you ask for a hint: the two cells, and how long the hint stays.
+    @ObservationIgnored private(set) var hint: (a: Int, b: Int, life: Double)?
+    @ObservationIgnored private var clearedSinceDiamond = 0
+    @ObservationIgnored private var diamondDue = false
     private(set) var combo = 1
     private(set) var frame = 0
     private(set) var toast: String?
@@ -76,7 +79,8 @@ final class SwitchGame {
     // MARK: Phases
 
     func start() {
-        score = 0; moves = startMoves; combo = 1; newBest = false
+        score = 0; moves = 0; combo = 1; newBest = false
+        clearedSinceDiamond = 0; diamondDue = false; hint = nil
         dying = []; particles = []; sweeps = []; blasts = []
         fill()
         // Drop the whole board in from above.
@@ -89,20 +93,22 @@ final class SwitchGame {
     func pause() { if phase == .playing { phase = .paused } }
     func resume() { if phase == .paused { phase = .playing } }
 
+    /// End the game (from pause) and keep the score.
     func home() {
-        if phase != .ready { lastScore = score }
+        if phase != .ready {
+            lastScore = score
+            let s = Settings.shared
+            if score > s.switchBest { s.switchBest = score; newBest = score > 0 }
+        }
         phase = .ready
         ticker.stop()
     }
 
-    private func finish() {
-        phase = .over
-        lastScore = score
-        let s = Settings.shared
-        if score > s.switchBest { s.switchBest = score; newBest = score > 0 }
-        Haptics.notify(.success)
-        ticker.stop()
-        phase = .ready
+    /// Show one move that works.
+    func showHint() {
+        guard phase == .playing, !busy, let m = findMove() else { return }
+        hint = (m.0, m.1, 2.2)
+        Haptics.tap(.light)
     }
 
     // MARK: Board
@@ -160,7 +166,9 @@ final class SwitchGame {
 
     private func currentRuns() -> [Run] { runs { self.grid[$0]?.shade } }
 
-    private func hasMove() -> Bool {
+    private func hasMove() -> Bool { findMove() != nil }
+
+    private func findMove() -> (Int, Int)? {
         var shadesNow = grid.map { $0?.shade }
         for y in 0..<rows {
             for x in 0..<cols {
@@ -171,22 +179,23 @@ final class SwitchGame {
                     shadesNow.swapAt(a, b)
                     let found = !runs { shadesNow[$0] }.isEmpty
                     shadesNow.swapAt(a, b)
-                    if found { return true }
+                    if found { return (a, b) }
                 }
             }
         }
-        return false
+        return nil
     }
 
     // MARK: Moves
 
     /// Swipe from a cell in a direction: swap with that neighbour.
     func swipe(from cell: Int, dx: Int, dy: Int) {
-        guard phase == .playing, !busy, moves > 0 else { return }
+        guard phase == .playing, !busy else { return }
         let x = cell % cols + dx, y = cell / cols + dy
         guard x >= 0, y >= 0, x < cols, y < rows else { return }
         let other = idx(x, y)
         grid.swapAt(cell, other)
+        hint = nil
         step = .swapping(cell, other, back: false)
         Haptics.tap(.light, intensity: 0.5)
     }
@@ -201,7 +210,7 @@ final class SwitchGame {
             Haptics.tap(.soft, intensity: 0.4)
             return
         }
-        moves -= 1
+        moves += 1
         combo = 1
         resolve(found, focus: [b, a])
     }
@@ -211,16 +220,23 @@ final class SwitchGame {
         var clear = Set(found.flatMap(\.cells))
         var make: [(cell: Int, power: Gem.Power)] = []
 
-        // A cell in a line across and a line down (an L or a T) becomes a circle.
-        var across = Set<Int>(), down = Set<Int>()
-        for r in found { if r.across { across.formUnion(r.cells) } else { down.formUnion(r.cells) } }
-        let corners = across.intersection(down)
-        for c in corners { make.append((c, .bomb)) }
-
-        for r in found where r.cells.count >= 4 && corners.isDisjoint(with: r.cells) {
+        // Four in a line: a row clearer (across) or a column clearer (down). Five or more: a circle.
+        for r in found where r.cells.count >= 4 {
             let at = focus.first(where: { r.cells.contains($0) }) ?? r.cells[r.cells.count / 2]
-            make.append((at, r.cells.count >= 5 ? .shade : (r.across ? .row : .column)))
+            make.append((at, r.cells.count >= 5 ? .bomb : (r.across ? .row : .column)))
         }
+        // Two lines at once (from one swipe, or crossing in an L or a T): a diamond.
+        if found.count >= 2 {
+            var across = Set<Int>(), down = Set<Int>()
+            for r in found { if r.across { across.formUnion(r.cells) } else { down.formUnion(r.cells) } }
+            let corner = across.intersection(down).first
+            let at = corner ?? focus.first(where: { f in found.contains { $0.cells.contains(f) } }) ?? found[0].cells[found[0].cells.count / 2]
+            make.removeAll { $0.cell == at }
+            make.append((at, .shade))
+        }
+        // One power per cell.
+        var taken = Set<Int>()
+        make = make.filter { taken.insert($0.cell).inserted }
         // Don't overwrite a power that's about to go off.
         make.removeAll { grid[$0.cell]?.power != nil }
         for m in make { clear.remove(m.cell) }
@@ -258,6 +274,9 @@ final class SwitchGame {
         }
 
         score += clear.count * 10 * combo
+        // Every 12 squares cleared, a diamond turns up among the new squares.
+        clearedSinceDiamond += clear.count
+        if clearedSinceDiamond >= 12 { clearedSinceDiamond -= 12; diamondDue = true }
         for c in clear {
             guard var g = grid[c] else { continue }
             burst(g)
@@ -287,9 +306,10 @@ final class SwitchGame {
             var k = 0
             while write >= 0 {
                 k += 1
-                // Now and then a power turns up on its own.
+                // Now and then a line clearer or a circle turns up on its own; a diamond when one is due.
                 let roll = Double.random(in: 0..<1)
-                let power: Gem.Power? = roll < 0.012 ? .row : roll < 0.024 ? .column : roll < 0.033 ? .bomb : roll < 0.037 ? .shade : nil
+                var power: Gem.Power? = roll < 0.01 ? .row : roll < 0.02 ? .column : roll < 0.026 ? .bomb : nil
+                if diamondDue && Bool.random() { power = .shade; diamondDue = false }
                 grid[idx(x, write)] = newGem(x: x, y: -Double(k), shade: Int.random(in: 0..<shades), power: power)
                 write -= 1
             }
@@ -306,7 +326,6 @@ final class SwitchGame {
         }
         combo = 1
         step = .idle
-        if moves <= 0 { finish(); return }
         if !hasMove() {
             show("Shuffle")
             repeat {
@@ -379,6 +398,10 @@ final class SwitchGame {
         for i in blasts.indices.reversed() {
             blasts[i].life -= dt * 2.5
             if blasts[i].life <= 0 { blasts.remove(at: i) }
+        }
+        if var h = hint {
+            h.life -= dt
+            hint = h.life > 0 ? h : nil
         }
 
         switch step {

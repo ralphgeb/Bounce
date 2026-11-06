@@ -5,6 +5,7 @@ struct HomeView: View {
     let game: Game
     let colors: Colors
     let onBack: () -> Void
+    let onSettings: () -> Void
 
     @State private var dropped = false
     @State private var drag: CGSize = .zero
@@ -12,7 +13,7 @@ struct HomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            BackBar(ink: colors.ink, action: onBack)
+            BackBar(ink: colors.ink, settings: onSettings, action: onBack)
 
             Spacer()
             ElasticLogo(word: "BOUNCE", fills: logoFills, ink: colors.ink, drag: drag, dropped: dropped)

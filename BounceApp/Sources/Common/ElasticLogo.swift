@@ -80,9 +80,10 @@ extension View {
     func elasticDrag(_ drag: Binding<CGSize>) -> some View { modifier(ElasticDrag(drag: drag)) }
 }
 
-/// The page header: a back chevron on the left.
+/// The page header: a back chevron on the left, and the settings button on the right.
 struct BackBar: View {
     let ink: Color
+    var settings: (() -> Void)? = nil
     let action: () -> Void
 
     var body: some View {
@@ -99,6 +100,16 @@ struct BackBar: View {
             }
             .accessibilityLabel("Games")
             Spacer()
+            if let settings {
+                Button(action: settings) {
+                    Image(systemName: "circle.lefthalf.filled")
+                        .font(.system(size: 17))
+                        .foregroundStyle(ink.opacity(0.45))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Settings")
+            }
         }
         .padding(.horizontal, 8)
     }

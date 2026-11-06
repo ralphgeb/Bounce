@@ -169,7 +169,23 @@ final class MazeGame {
         let s = Settings.shared
         let key = String(level)
         if levelTime < (s.mazeTimes[key] ?? .infinity) { s.mazeTimes[key] = levelTime }
-        if level + 1 > s.mazeDeepest { s.mazeDeepest = level + 1; newRecord = true }
+        let last = level >= Maze.levels
+        let reached = last ? Maze.levels : level + 1
+        if reached > s.mazeDeepest || (last && !s.mazeFinished) {
+            s.mazeDeepest = reached; newRecord = true
+        }
+        if last {
+            // The way out of level 20: the whole maze is done.
+            s.mazeFinished = true
+            show("You made it out")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, self.phase == .cleared else { return }
+                self.phase = .playing
+                self.home()
+            }
+            return
+        }
         show("Level \(level + 1)")
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(1.1))
@@ -232,6 +248,7 @@ final class MazeGame {
         range = baseRange * (1 + 0.025 * sin(totalTime * 1.7))
         var l: [Int: Double] = [:]
         light = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: range, rays: 360, lit: &l)
+        Lighting.fillCorners(maze, lit: &l)
         lit = l
     }
 }

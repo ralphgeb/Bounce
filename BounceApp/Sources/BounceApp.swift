@@ -12,8 +12,7 @@ struct BounceApp: App {
     }
 }
 
-/// The menu, and each game's landing page and board. Bounce and Switch follow the look's light or
-/// dark; Maze is always dark.
+/// The menu, and each game's landing page and board. Every game follows the look's light or dark.
 struct RootView: View {
     @State private var screen: Screen = .menu
     @State private var game = Game()
@@ -35,10 +34,11 @@ struct RootView: View {
 
     var body: some View {
         let c = settings.colors(scheme)
-        let dark = settings.darkColors
+        // Maze is pitch black in dark mode and pitch white in light mode.
+        let mazeColors = Colors(ink: c.ink, background: scheme == .dark ? .black : .white, accent: c.accent)
         GeometryReader { geo in
             ZStack {
-                (screen == .maze ? Color.black : c.background).ignoresSafeArea()
+                (screen == .maze ? mazeColors.background : c.background).ignoresSafeArea()
 
                 switch screen {
                 case .menu:
@@ -49,24 +49,23 @@ struct RootView: View {
                         if game.phase == .playing || game.phase == .paused {
                             GameView(game: game, colors: c, safeTop: geo.safeAreaInsets.top, safeBottom: geo.safeAreaInsets.bottom)
                         } else {
-                            HomeView(game: game, colors: c, onBack: { screen = .menu })
+                            HomeView(game: game, colors: c, onBack: { screen = .menu }, onSettings: { showSettings = true })
                         }
                     }
                     .transition(.opacity)
                 case .maze:
                     Group {
                         if maze.phase == .ready {
-                            MazeHome(game: maze, colors: dark, onBack: { screen = .menu })
+                            MazeHome(game: maze, colors: mazeColors, onBack: { screen = .menu }, onSettings: { showSettings = true })
                         } else {
-                            MazeView(game: maze, colors: dark)
+                            MazeView(game: maze, colors: mazeColors)
                         }
                     }
-                    .environment(\.colorScheme, .dark)
                     .transition(.opacity)
                 case .switcher:
                     Group {
                         if switcher.phase == .ready {
-                            SwitchHome(game: switcher, colors: c, onBack: { screen = .menu })
+                            SwitchHome(game: switcher, colors: c, onBack: { screen = .menu }, onSettings: { showSettings = true })
                         } else {
                             SwitchView(game: switcher, colors: c)
                         }
