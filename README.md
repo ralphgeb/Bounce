@@ -10,15 +10,15 @@ The app opens on a menu of four games, one section each, split by thin lines:
 
 On the menu, drag in a game's section and its logo stretches after your finger and springs back (the others barely move); only a tap, without dragging, opens the game. Each landing page has the settings button at the top right.
 
-**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small centred panel (at the top, or low for Bounce) and leave the game playable; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Switch's and Hue's tutorials are played on the board: the squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again brings them back.
+**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small, see-through centred panel (at the top, or low for Bounce) and leave the game playable, with Skip at the bottom of the screen; pausing puts Carry on above the tutorial; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Switch's and Hue's tutorials are played on the board: the squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again brings them back.
 
 ## Maze
 
 - Pitch black in dark mode, pitch white in light mode. You are the accent square, and bright light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, corners included, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
 - **Swipe** up, down, left or right to slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
 - **Dots**: tap to drop a dot where you stand; tap on it again to pick it up. You get 10 on level 1 and 3 more each level on top of what you have left (a "+3" pops up by the count). Each level starts with you growing in from a tiny square as your light comes up, with one soft wave of light going out. Dots stay where you left them, glowing softly, brighter in your light.
-- **The map**: hold still for a moment, or pinch in, and the view zooms out over the whole level. It stays dark: you see only what your light reaches, your dots, and a ring where you are, so you can tell where your dots are compared to you. Let go and it zooms back.
-- **The way out** is an accent circle with its own glow.
+- **The map**: pinch in and the view zooms out over the whole level. It stays dark: you see only what your light reaches, your dots, and a ring where you are, so you can tell where your dots are compared to you. Let go and it zooms back.
+- **The way out** is a glowing accent star, slowly turning (so it never looks like one of your dots).
 - **20 levels**, each bigger and harder: level 1 is 21 x 29 tiles with the way out about 160 steps away and 17 dead ends; level 20 is 97 x 143 tiles, about 650 steps and 420 dead ends. Later levels branch more, with a few more loops. Every player gets the same mazes. [All 20 levels](docs/maze-levels.png) (drawn by `BounceApp/tools/maze_levels.py`, which uses the same generator and random numbers as the app). Records: the deepest level, the fastest time for each, and whether you've made it out of level 20.
 - Settings › Maze › **Show the walls** draws every wall faintly, for trying things out.
 

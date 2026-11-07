@@ -123,8 +123,9 @@ struct SwitchView: View {
                         .allowsHitTesting(false)
                 }
 
+                // The tutorial steps aside while paused; Carry on sits on top.
+                if game.phase != .paused { CoachOverlay(coach: game.coach, colors: colors) }
                 if game.phase == .paused { paused }
-                CoachOverlay(coach: game.coach, colors: colors)
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: game.toastID)

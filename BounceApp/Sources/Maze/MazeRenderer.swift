@@ -104,7 +104,7 @@ enum MazeRenderer {
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(a)))
         }
 
-        // The way out: an accent circle with its own glow, once your light reaches it.
+        // The way out: an accent star with its own glow, once your light reaches it.
         if s.showGoal {
             let g = CGPoint(x: Double(s.maze.goal.x) + 0.5, y: Double(s.maze.goal.y) + 0.5)
             let gs = screen(g)
@@ -113,8 +113,7 @@ enum MazeRenderer {
                 ctx.fill(Path(ellipseIn: CGRect(x: gs.x - T * 1.6, y: gs.y - T * 1.6, width: T * 3.2, height: T * 3.2)),
                          with: .radialGradient(Gradient(colors: [c.accent.opacity(0.5), c.accent.opacity(0)]),
                                                center: gs, startRadius: 0, endRadius: T * 1.6))
-                let r = T * 0.2 * pulse
-                ctx.fill(Path(ellipseIn: CGRect(x: gs.x - r, y: gs.y - r, width: r * 2, height: r * 2)), with: .color(c.accent))
+                ctx.fill(Star.path(center: gs, radius: T * 0.34 * pulse, turn: s.time * 0.5), with: .color(c.accent))
             }
         }
 

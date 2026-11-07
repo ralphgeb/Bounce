@@ -51,8 +51,9 @@ struct GameView: View {
                     .allowsHitTesting(false)
             }
 
+            // The tutorial steps aside while paused; Carry on sits on top.
+            if game.phase != .paused { CoachOverlay(coach: game.coach, colors: colors) }
             if game.phase == .paused { paused }
-            CoachOverlay(coach: game.coach, colors: colors)
         }
         .animation(.easeOut(duration: 0.25), value: game.toastID)
         .animation(.easeOut(duration: 0.2), value: game.toast == nil)

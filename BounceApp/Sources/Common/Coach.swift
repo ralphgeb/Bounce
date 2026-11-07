@@ -13,7 +13,7 @@ final class Coach {
         case drag, launch, swap
     }
 
-    enum Gesture { case none, swipeLeft, swipeRight, swipeAny, tap, hold, dragSideways, swapRight }
+    enum Gesture { case none, swipeLeft, swipeRight, swipeAny, tap, hold, pinch, dragSideways, swapRight }
 
     /// Little drawings for the steps that explain a rule.
     enum Picture { case none, wallDown, bouncePowers, hueFixed, mazeGlow }
@@ -109,7 +109,7 @@ struct CoachOverlay: View {
 
     private func card(_ step: Coach.Step) -> some View {
         ZStack {
-            colors.background.opacity(0.9)
+            colors.background.opacity(0.78)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { coach.next() }
@@ -137,27 +137,31 @@ struct CoachOverlay: View {
     // MARK: Action panel
 
     private func panel(_ step: Coach.Step) -> some View {
-        VStack(spacing: 0) {
-            if step.place == .low { Spacer() }
-            VStack(spacing: 14) {
-                line(step.text, size: 16)
-                if step.gesture != .none {
-                    FingerHint(gesture: step.gesture, colors: colors)
-                        .frame(width: 170, height: 60)
+        ZStack {
+            VStack(spacing: 0) {
+                if step.place == .low { Spacer() }
+                VStack(spacing: 14) {
+                    line(step.text, size: 16)
+                    if step.gesture != .none {
+                        FingerHint(gesture: step.gesture, colors: colors)
+                            .frame(width: 170, height: 60)
+                    }
+                    dots
                 }
-                dots
+                .padding(.vertical, 16)
+                .padding(.horizontal, 22)
+                .frame(maxWidth: 320)
+                // Barely there, so the game shows through.
+                .background(colors.background.opacity(0.35))
+                .allowsHitTesting(false)
+                if step.place == .top { Spacer() }
             }
-            .padding(.vertical, 18)
-            .padding(.horizontal, 22)
-            .frame(maxWidth: 320)
-            .background(colors.background.opacity(0.94))
-            .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.08), lineWidth: 1))
-            .allowsHitTesting(false)
-            skip.padding(.top, 6)
-            if step.place == .top { Spacer() }
+            .padding(.top, step.place == .top ? 104 : 0)
+            .padding(.bottom, step.place == .low ? 190 : 0)
+
+            // Skip always sits at the bottom of the screen.
+            VStack { Spacer(); skip.padding(.bottom, 24) }
         }
-        .padding(.top, step.place == .top ? 104 : 0)
-        .padding(.bottom, step.place == .low ? 190 : 0)
     }
 
     // MARK: Parts
@@ -165,6 +169,7 @@ struct CoachOverlay: View {
     private func line(_ text: String, size: CGFloat) -> some View {
         Text(text)
             .font(.system(size: size, weight: .semibold))
+            .shadow(color: colors.background.opacity(0.9), radius: 6)
             .lineSpacing(4)
             .multilineTextAlignment(.center)
             .foregroundStyle(colors.ink)
@@ -221,6 +226,16 @@ private struct FingerHint: View {
                         trail.addLine(to: p)
                         ctx.stroke(trail, with: .color(colors.accent.opacity(0.35)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     }
+                case .pinch:
+                    // Two fingers moving together, then apart again.
+                    let k = t < 0.55 ? (1 - cos(t / 0.55 * .pi)) / 2 : max(0, 1 - (t - 0.55) / 0.45)
+                    let spread = 46 - 30 * CGFloat(k)
+                    for side in [-1.0, 1.0] {
+                        let q = CGPoint(x: mid.x + CGFloat(side) * spread * 0.8, y: mid.y - CGFloat(side) * spread * 0.4)
+                        ctx.fill(Path(ellipseIn: CGRect(x: q.x - 13, y: q.y - 13, width: 26, height: 26)), with: .color(colors.ink.opacity(0.2)))
+                        ctx.stroke(Path(ellipseIn: CGRect(x: q.x - 13, y: q.y - 13, width: 26, height: 26)), with: .color(colors.ink.opacity(0.55)), lineWidth: 1.5)
+                    }
+                    return
                 case .tap:
                     press = t < 0.25 ? 1 : 0
                     alpha = 1
@@ -306,8 +321,7 @@ private struct CoachPicture: View {
                     let pulse = 1 + 0.1 * sin(t * 3)
                     ctx.fill(Path(ellipseIn: CGRect(x: c.x - 54, y: c.y - 54, width: 108, height: 108)),
                              with: .radialGradient(Gradient(colors: [colors.accent.opacity(0.5), colors.accent.opacity(0)]), center: c, startRadius: 0, endRadius: 54))
-                    let r: CGFloat = 9 * pulse
-                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: .color(colors.accent))
+                    ctx.fill(Star.path(center: c, radius: 14 * pulse, turn: t * 0.4), with: .color(colors.accent))
                 case .hueFixed:
                     let n = 7, cell: CGFloat = 24, gap: CGFloat = 4
                     let w = CGFloat(n) * (cell + gap) - gap
@@ -334,5 +348,26 @@ private struct CoachPicture: View {
         p.move(to: CGPoint(x: a, y: y)); p.addLine(to: CGPoint(x: b, y: y))
         p.move(to: CGPoint(x: b - 6, y: y - 5)); p.addLine(to: CGPoint(x: b, y: y)); p.addLine(to: CGPoint(x: b - 6, y: y + 5))
         ctx.stroke(p, with: .color(colors.accent), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+    }
+}
+
+/// The way out of a maze: a four-pointed star.
+enum Star {
+    static func path(center c: CGPoint, radius r: CGFloat, turn: Double = 0) -> Path {
+        var p = Path()
+        for i in 0..<8 {
+            let a = Double(i) / 8 * 2 * .pi + turn - .pi / 2
+            let rr = i % 2 == 0 ? r : r * 0.38
+            let q = CGPoint(x: c.x + CGFloat(cos(a)) * rr, y: c.y + CGFloat(sin(a)) * rr)
+            if i == 0 { p.move(to: q) } else { p.addLine(to: q) }
+        }
+        p.closeSubpath()
+        return p
+    }
+}
+
+struct StarShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Star.path(center: CGPoint(x: rect.midX, y: rect.midY), radius: min(rect.width, rect.height) / 2)
     }
 }

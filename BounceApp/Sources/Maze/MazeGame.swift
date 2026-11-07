@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Maze: you are a square in pitch black, giving off light all around you. Walls catch the light and
 /// throw shadows, and that is all you see. Swipe to slide; you stop at walls and at every turning.
-/// Tap to drop a dot so you know where you've been (10 to start, 3 more each level). Hold or pinch
-/// to see the map of the walls you've lit. Find the glowing way out to go deeper.
+/// Tap to drop a dot so you know where you've been (10 to start, 3 more each level). Pinch to zoom
+/// out and see where your dots are compared to you. Find the glowing way out to go deeper.
 @MainActor
 @Observable
 final class MazeGame {
@@ -54,6 +54,8 @@ final class MazeGame {
     /// 0 = normal view, 1 = the whole map. Eases towards mapTarget.
     @ObservationIgnored private(set) var map: Double = 0
     @ObservationIgnored var mapTarget: Double = 0
+    @ObservationIgnored private var pinchedOut = false
+    @ObservationIgnored private var mapDone = false
     /// Seconds since the dots were given (for the ring of new dots around you).
     @ObservationIgnored private(set) var dotGainAge: Double = 9
     @ObservationIgnored private(set) var range: Double = 5
@@ -91,12 +93,12 @@ final class MazeGame {
         ticker.start()
         show("Level 1")
         coach.begin("maze", steps: [
-            .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft, place: .low),
-            .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight, place: .low),
-            .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap, place: .low),
-            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap, place: .low),
-            .init(text: "Hold anywhere to zoom out.\nYou'll see your dots and where you are.", waitFor: .hold, gesture: .hold, place: .low),
-            .init(text: "Find the glowing circle\nto go one level deeper.\nThere are 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
+            .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft),
+            .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight),
+            .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap),
+            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap),
+            .init(text: "Pinch to zoom out.\nYou'll see your dots and where you are.\nLet go to come back.", waitFor: .hold, gesture: .pinch),
+            .init(text: "Find the glowing star\nto go one level deeper.\nThere are 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
         ])
     }
 
@@ -137,17 +139,18 @@ final class MazeGame {
         dotGainAge = 0
     }
 
-    /// Hold (or pinch): show the map while the finger stays down.
-    func showMap(_ on: Bool) {
-        guard phase == .playing else { return }
-        if on && mapTarget == 0 { coach.did(.hold); Haptics.tap(.soft, intensity: 0.5) }
-        mapTarget = on ? 1 : 0
-    }
-
+    /// Pinch: zoom out towards the map while the fingers stay down.
     func pinch(_ amount: Double) {
         guard phase == .playing else { return }
         mapTarget = max(0, min(1, amount))
-        if amount > 0.5 { coach.did(.hold) }
+        if mapTarget > 0.5 && !pinchedOut { pinchedOut = true; Haptics.tap(.soft, intensity: 0.5) }
+    }
+
+    /// Fingers lifted: zoom back. The tutorial's map step finishes once you're back where you were.
+    func endPinch() {
+        mapTarget = 0
+        if pinchedOut { mapDone = true }
+        pinchedOut = false
     }
 
     /// Tap: drop a dot where you stand, or pick one up if there's one here.
@@ -291,6 +294,7 @@ final class MazeGame {
         if flash > 0 { flash = max(0, flash - dt * 1.4) }
         map += (mapTarget - map) * min(1, dt * 9)
         if abs(map - mapTarget) < 0.002 { map = mapTarget }
+        if mapDone && map < 0.02 { mapDone = false; coach.did(.hold) }
         dotGainAge += dt
 
         relight()

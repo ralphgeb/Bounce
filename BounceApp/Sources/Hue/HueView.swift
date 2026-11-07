@@ -55,8 +55,9 @@ struct HueView: View {
                 .animation(.easeOut(duration: 0.3), value: game.phase == .preview)
 
                 if game.phase == .solved { solvedCard.transition(.opacity.combined(with: .scale(scale: 0.96))) }
+                // The tutorial steps aside while paused; Carry on sits on top.
+                if game.phase != .paused { CoachOverlay(coach: game.coach, colors: colors) }
                 if game.phase == .paused { paused }
-                CoachOverlay(coach: game.coach, colors: colors)
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.phase == .solved)
