@@ -53,6 +53,24 @@ struct HomeView: View {
         }
     }
 
+    private var blasterMark: some View {
+        ZStack {
+            Rectangle().strokeBorder(colors.accent, lineWidth: 1.5)
+            Rectangle().fill(colors.accent).padding(3)
+        }
+    }
+
+    private func lineMark(across: Bool) -> some View {
+        ZStack {
+            ChamferShape().fill(colors.accent)
+            Rectangle().fill(colors.background).frame(width: across ? 7 : 1.5, height: across ? 1.5 : 7)
+        }
+    }
+
+    private var bombMark: some View {
+        Circle().fill(colors.accent)
+    }
+
     private func rule(_ mark: some View, _ text: String) -> some View {
         HStack(spacing: 12) {
             mark.frame(width: 36, height: 16, alignment: .leading)
