@@ -33,6 +33,8 @@ final class SwitchGame {
         case swapping(Int, Int, back: Bool)
         case clearing(Double)
         case falling
+        /// Tutorial: the squares about to clear are highlighted for a moment first.
+        case showing(Double, Outcome)
     }
 
     let cols = 7
@@ -164,16 +166,26 @@ final class SwitchGame {
             g[i] = newGem(x: c.x, y: Double(c.y), shade: accent, power: c.power)
             special.insert(i)
         }
-        // Everything else: the other colours, with no lines already made.
-        for y in 0..<rows {
-            for x in 0..<cols where !special.contains(idx(x, y)) {
-                var s: Int
-                repeat {
-                    s = Int.random(in: 0..<(shades - 1))
-                } while (x >= 2 && g[idx(x - 1, y)]?.shade == s && g[idx(x - 2, y)]?.shade == s)
-                    || (y >= 2 && g[idx(x, y - 1)]?.shade == s && g[idx(x, y - 2)]?.shade == s)
-                g[idx(x, y)] = newGem(x: x, y: Double(y), shade: s)
+        // Everything else: the other colours, with no lines made, and none made by the shown swipe
+        // except the pattern's own.
+        let from = idx(st.move.x, st.move.y), to = idx(st.move.x + st.move.dx, st.move.y + st.move.dy)
+        let expected = st.cells.count == 5 && st.cells.contains(where: { $0.y == 3 }) ? 2 : 1
+        for _ in 0..<200 {
+            for y in 0..<rows {
+                for x in 0..<cols where !special.contains(idx(x, y)) {
+                    var s: Int
+                    repeat {
+                        s = Int.random(in: 0..<(shades - 1))
+                    } while (x >= 2 && g[idx(x - 1, y)]?.shade == s && g[idx(x - 2, y)]?.shade == s)
+                        || (y >= 2 && g[idx(x, y - 1)]?.shade == s && g[idx(x, y - 2)]?.shade == s)
+                    g[idx(x, y)] = newGem(x: x, y: Double(y), shade: s)
+                }
             }
+            var shadesNow = g.map { $0?.shade }
+            guard runs({ shadesNow[$0] }).isEmpty else { continue }
+            shadesNow.swapAt(from, to)
+            let after = runs { shadesNow[$0] }
+            if after.count == expected && after.allSatisfy({ $0.cells.allSatisfy { shadesNow[$0] == accent } }) { break }
         }
         if st.sprinkle {
             for (x, y) in [(0, 0), (5, 1), (3, 7), (6, 6), (0, 7)] where !special.contains(idx(x, y)) {
@@ -248,6 +260,18 @@ final class SwitchGame {
     }
 
     private struct Run { var cells: [Int]; var across: Bool }
+
+    /// What a set of lines will do: the squares to clear, the powers to make, and the effects.
+    fileprivate struct Outcome {
+        var clear: Set<Int>
+        var make: [(cell: Int, power: Gem.Power)]
+        var sweeps: [(index: Int, across: Bool, life: Double)]
+        var blasts: [(x: Int, y: Int, life: Double)]
+        var powered: Bool
+    }
+
+    /// Tutorial: the squares about to clear, highlighted.
+    @ObservationIgnored private(set) var highlight = Set<Int>()
 
     private func runs(_ shadeAt: (Int) -> Int?) -> [Run] {
         var out: [Run] = []
@@ -361,6 +385,8 @@ final class SwitchGame {
         var queue = clear.filter { grid[$0]?.power != nil }
         var done = Set<Int>()
         var sound = false
+        var newSweeps: [(index: Int, across: Bool, life: Double)] = []
+        var newBlasts: [(x: Int, y: Int, life: Double)] = []
         while let c = queue.popFirst() {
             guard !done.contains(c), let g = grid[c], let p = g.power else { continue }
             done.insert(c)
@@ -369,18 +395,18 @@ final class SwitchGame {
             switch p {
             case .row:
                 reach = (0..<cols).map { idx($0, cy) }
-                sweeps.append((cy, true, 1))
+                newSweeps.append((cy, true, 1))
             case .column:
                 reach = (0..<rows).map { idx(cx, $0) }
-                sweeps.append((cx, false, 1))
+                newSweeps.append((cx, false, 1))
             case .bomb:
                 for y in max(0, cy - 1)...min(rows - 1, cy + 1) {
                     for x in max(0, cx - 1)...min(cols - 1, cx + 1) { reach.append(idx(x, y)) }
                 }
-                blasts.append((cx, cy, 1))
+                newBlasts.append((cx, cy, 1))
             case .shade:
                 reach = grid.indices.filter { grid[$0]?.shade == g.shade }
-                blasts.append((cx, cy, 1))
+                newBlasts.append((cx, cy, 1))
             }
             sound = true
             for r in reach where !clear.contains(r) && !make.contains(where: { $0.cell == r }) {
@@ -389,6 +415,22 @@ final class SwitchGame {
             }
         }
 
+        let outcome = Outcome(clear: clear, make: make, sweeps: newSweeps, blasts: newBlasts, powered: sound)
+        if tutorial != nil {
+            // Show what's about to go before it goes: longer when a power is going off.
+            highlight = clear
+            step = .showing(sound ? 1.4 : 0.8, outcome)
+            Haptics.tap(.light, intensity: 0.6)
+            return
+        }
+        apply(outcome)
+    }
+
+    private func apply(_ o: Outcome) {
+        let clear = o.clear, make = o.make, sound = o.powered
+        highlight = []
+        sweeps.append(contentsOf: o.sweeps)
+        blasts.append(contentsOf: o.blasts)
         score += clear.count * 10 * combo
         // Every 120 squares cleared, a diamond turns up among the new squares.
         clearedSinceDiamond += clear.count
@@ -406,7 +448,7 @@ final class SwitchGame {
         }
         if sound { Haptics.tap(.heavy) } else { Haptics.tap(.rigid, intensity: 0.6) }
         if combo >= 2 { show("×\(combo)") }
-        step = .clearing(0.2)
+        step = .clearing(tutorial != nil ? 0.7 : 0.2)
     }
 
     /// Everything falls into the gaps; new pieces drop in from the top.
@@ -499,7 +541,7 @@ final class SwitchGame {
             grid[i] = g
         }
         for i in dying.indices.reversed() {
-            dying[i].fade -= dt * 5
+            dying[i].fade -= dt * (tutorial != nil ? 1.8 : 5)
             if dying[i].fade <= 0 { dying.remove(at: i) }
         }
         for i in particles.indices.reversed() {
@@ -529,7 +571,18 @@ final class SwitchGame {
             if !moving { afterSwap(a, b, back: back) }
         case let .clearing(t):
             let left = t - dt
-            if left <= 0 { collapse() } else { step = .clearing(left) }
+            if left > 0 {
+                step = .clearing(left)
+            } else if tutorial != nil {
+                // In the tutorial nothing falls in afterwards, so only your lines ever clear.
+                step = .idle
+                if awaiting { awaiting = false; stageDone() }
+            } else {
+                collapse()
+            }
+        case let .showing(t, o):
+            let left = t - dt
+            if left <= 0 { apply(o) } else { step = .showing(left, o) }
         case .falling:
             if !moving { settled() }
         }

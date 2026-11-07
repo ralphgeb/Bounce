@@ -2,20 +2,26 @@ import SwiftUI
 
 /// Switch's colours: five that go together, built around the theme's accent (Colour), and the logo.
 enum SwitchColors {
-    /// The accent and four more around the colour wheel (in OKLCh), at lightnesses that keep them
-    /// easy to tell apart.
+    /// The accent and four colours chosen to go with it: two neighbours either side of it on the
+    /// colour wheel and two from the opposite side, a little softer, at lightnesses that keep all
+    /// five easy to tell apart (in OKLCh).
     static func colourful(_ accent: Color) -> [Color] {
         let a = HueColor.lab(RGB(accent))
-        let c = max(0.12, min(0.17, hypot(a.a, a.b)))
+        let chroma = max(0.1, min(0.16, hypot(a.a, a.b)))
         let h = atan2(a.b, a.a)
-        let steps: [(turn: Double, l: Double)] = [(0.2, 0.80), (0.42, 0.62), (0.6, 0.74), (0.8, 0.55)]
-        var out = [accent]
-        for s in steps {
-            let hh = h + s.turn * 2 * .pi
-            out.append(HueColor.rgb(HueColor.Lab(l: s.l, a: c * cos(hh), b: c * sin(hh))).color)
+        let deg = Double.pi / 180
+        let partners: [(turn: Double, l: Double, c: Double)] = [
+            (-38 * deg, 0.58, chroma),          // a deeper neighbour
+            (34 * deg, 0.84, chroma * 0.85),    // a lighter neighbour
+            (168 * deg, 0.66, chroma * 0.7),    // the complement, softened
+            (205 * deg, 0.45, chroma * 0.65),   // a deep cool partner
+        ]
+        let others = partners.map { p -> Color in
+            let hh = h + p.turn
+            return HueColor.rgb(HueColor.Lab(l: p.l, a: p.c * cos(hh), b: p.c * sin(hh))).color
         }
-        // Order: the accent last, as in Mono (index 4 is the accent there too).
-        return [out[1], out[2], out[3], out[4], out[0]]
+        // The accent last, as in Mono (index 4 is the accent there too).
+        return others + [accent]
     }
 
     static func logo(_ colors: Colors) -> [Color] {
@@ -231,6 +237,16 @@ struct SwitchView: View {
             }
         }
 
+        // Tutorial: the squares about to clear, outlined in the accent and pulsing, before they go.
+        if !game.highlight.isEmpty {
+            let pulse = 0.5 + 0.5 * sin(game.clock * 9)
+            for c in game.highlight {
+                let r = CGRect(x: L.origin.x + CGFloat(c % game.cols) * C, y: L.origin.y + CGFloat(c / game.cols) * C, width: C, height: C)
+                ctx.fill(Path(r.insetBy(dx: gap / 2, dy: gap / 2)), with: .color(colors.accent.opacity(0.18 + 0.22 * pulse)))
+                ctx.stroke(Path(r.insetBy(dx: 1, dy: 1)), with: .color(colors.accent), lineWidth: 2)
+            }
+        }
+
         // Tutorial: outline the two squares to swap, and a finger showing the swipe.
         if let g = game.guide, !game.busy {
             let fx = g.cell % game.cols, fy = g.cell / game.cols
@@ -378,7 +394,7 @@ struct SwitchHome: View {
 
     private func lineMark(across: Bool) -> some View {
         ZStack {
-            ChamferShape().fill(colors.ink)
+            ChamferShape().fill(colors.accent)
             Rectangle().fill(colors.background).frame(width: across ? 7 : 1.5, height: across ? 1.5 : 7)
         }
         .frame(width: 15, height: 15)
@@ -386,7 +402,7 @@ struct SwitchHome: View {
 
     private var bombMark: some View {
         ZStack {
-            Circle().fill(colors.ink)
+            Circle().fill(colors.accent)
             Circle().fill(colors.background).frame(width: 3, height: 3)
         }
         .frame(width: 15, height: 15)
@@ -394,7 +410,7 @@ struct SwitchHome: View {
 
     private var diamondMark: some View {
         ZStack {
-            Rectangle().fill(colors.ink).frame(width: 11, height: 11).rotationEffect(.degrees(45))
+            Rectangle().fill(colors.accent).frame(width: 11, height: 11).rotationEffect(.degrees(45))
             Rectangle().fill(colors.background).frame(width: 2.5, height: 2.5)
         }
         .frame(width: 16, height: 16)

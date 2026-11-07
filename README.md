@@ -16,7 +16,7 @@ On the menu, drag in a game's section and its logo stretches after your finger a
 
 - Pitch black in dark mode, pitch white in light mode. You are the accent square, and bright light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, corners included, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
 - **Swipe** up, down, left or right to slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
-- **Dots**: tap to drop a dot where you stand; tap on it again to pick it up. You get 10 on level 1 and 3 more each level on top of what you have left (a ring of new dots gathers into you, and a "+3" pops up by the count). Dots stay where you left them, glowing softly, brighter in your light.
+- **Dots**: tap to drop a dot where you stand; tap on it again to pick it up. You get 10 on level 1 and 3 more each level on top of what you have left (a "+3" pops up by the count). Each level starts with you growing in from a tiny square as your light comes up, with one soft wave of light going out. Dots stay where you left them, glowing softly, brighter in your light.
 - **The map**: hold still for a moment, or pinch in, and the view zooms out over the whole level. It stays dark: you see only what your light reaches, your dots, and a ring where you are, so you can tell where your dots are compared to you. Let go and it zooms back.
 - **The way out** is an accent circle with its own glow.
 - **20 levels**, each bigger and harder: level 1 is 21 x 29 tiles with the way out about 160 steps away and 17 dead ends; level 20 is 97 x 143 tiles, about 650 steps and 420 dead ends. Later levels branch more, with a few more loops. Every player gets the same mazes. [All 20 levels](docs/maze-levels.png) (drawn by `BounceApp/tools/maze_levels.py`, which uses the same generator and random numbers as the app). Records: the deepest level, the fastest time for each, and whether you've made it out of level 20.
@@ -24,10 +24,10 @@ On the menu, drag in a game's section and its logo stretches after your finger a
 
 ## Switch
 
-- A 7 x 8 board in five colours. Choose before you play: **Mono** (the main colour at 90%, 65%, 40% and 15%, and the accent) or **Colour** (the accent and four more picked around the colour wheel from it, at different lightnesses so they're easy to tell apart). **Swipe** a square to swap it with its neighbour; three or more in a line clear, the rest fall, and new squares drop in. Chains score x2, x3…
+- A 7 x 8 board in five colours. Choose before you play: **Mono** (the main colour at 90%, 65%, 40% and 15%, and the accent) or **Colour** (your accent and four colours that go with it: a deeper and a lighter neighbour on the colour wheel and two softer ones from the opposite side, at different lightnesses so they're easy to tell apart). **Swipe** a square to swap it with its neighbour; three or more in a line clear, the rest fall, and new squares drop in. Chains score x2, x3…
 - **Powers** only come from your lines: **four across** makes a row clearer (cut corners, line across), **four down** a column clearer (line down), **five in a line** a circle that clears the squares around it, and a **T or an L** a diamond, with a soft diagonal shine fading in and out, that clears every square of its colour. One diamond also turns up after every 120 squares cleared.
 - **No limit on moves**; end the game from pause to keep your score. **Hint** shows one move that works.
-- The tutorial is seven moves on real boards: three in a row, four, setting off the line clearer, five, the circle, a T, the diamond.
+- The tutorial is seven moves on real boards: three in a row, four, setting off the line clearer, five, the circle, a T, the diamond. Only your line ever clears (nothing falls in afterwards, so there are no surprise chains), and each time the squares about to go are outlined in the accent for a moment first, longer when a power is going off, so you can see exactly what it takes.
 
 ## Hue
 

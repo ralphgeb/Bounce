@@ -47,7 +47,9 @@ enum MazeRenderer {
         }
         let x0 = Int(floor(-origin.x / T)) - 1, x1 = Int(ceil((size.width - origin.x) / T)) + 1
         let y0 = Int(floor(-origin.y / T)) - 1, y1 = Int(ceil((size.height - origin.y) / T)) + 1
-        let k = s.lightStrength
+        // At the start of each level you appear: the light comes up over the first second.
+        let appear = s.dotGain > 0 ? min(1, s.dotGainAge / 0.9) : 1
+        let k = s.lightStrength * (1 - pow(1 - appear, 2))
 
         // Settings › Maze › Show the walls: every wall, very faintly.
         if s.revealWalls {
@@ -127,7 +129,10 @@ enum MazeRenderer {
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - T, y: p.y - T, width: T * 2, height: T * 2)),
                      with: .radialGradient(Gradient(colors: [c.accent.opacity(0.4 * k), c.accent.opacity(0)]),
                                            center: p, startRadius: 0, endRadius: T))
-            let base = T * 0.42
+            // You grow in from a tiny square, with a little overshoot, as the light comes up.
+            let g = min(1, s.dotGainAge / 0.7)
+            let grow = s.dotGain > 0 && g < 1 ? 1 + 2.4 * pow(g - 1, 3) + 1.4 * pow(g - 1, 2) : 1
+            let base = T * 0.42 * CGFloat(max(0.05, grow))
             var w = base, h = base
             if let m = s.moving {
                 let along = 1 + 0.22 * s.squash, across = 1 - 0.12 * s.squash
@@ -142,19 +147,12 @@ enum MazeRenderer {
                            with: .color(c.accent.opacity(s.map)), lineWidth: 2)
             }
 
-            // New dots: a ring of them around you that turns and gathers in.
-            if s.dotGain > 0 && s.dotGainAge < 1.4 {
-                let a = s.dotGainAge / 1.4
-                let ease = 1 - pow(1 - a, 3)
-                let radius = T * (1.6 - 1.4 * CGFloat(ease))
-                for i in 0..<s.dotGain {
-                    let ang = Double(i) / Double(s.dotGain) * 2 * .pi + a * 3
-                    let q = CGPoint(x: p.x + cos(ang) * radius, y: p.y + sin(ang) * radius)
-                    let r = T * 0.1
-                    ctx.fill(Path(ellipseIn: CGRect(x: q.x - r * 3, y: q.y - r * 3, width: r * 6, height: r * 6)),
-                             with: .radialGradient(Gradient(colors: [c.accent.opacity(0.5 * (1 - a)), c.accent.opacity(0)]), center: q, startRadius: 0, endRadius: r * 3))
-                    ctx.fill(Path(ellipseIn: CGRect(x: q.x - r, y: q.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(1 - a * a)))
-                }
+            // As you appear, one soft wave of light goes out from you.
+            if s.dotGain > 0 && s.dotGainAge < 1.2 {
+                let a = s.dotGainAge / 1.2
+                let rr = T * (0.3 + 2.4 * CGFloat(a))
+                ctx.stroke(Path(ellipseIn: CGRect(x: p.x - rr, y: p.y - rr, width: rr * 2, height: rr * 2)),
+                           with: .color(c.accent.opacity(0.5 * (1 - a))), lineWidth: 2)
             }
         }
 

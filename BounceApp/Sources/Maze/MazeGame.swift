@@ -91,11 +91,11 @@ final class MazeGame {
         ticker.start()
         show("Level 1")
         coach.begin("maze", steps: [
-            .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft),
-            .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight),
-            .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap),
-            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap),
-            .init(text: "Hold anywhere to zoom out.\nYou'll see your dots and where you are.", waitFor: .hold, gesture: .hold),
+            .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft, place: .low),
+            .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight, place: .low),
+            .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap, place: .low),
+            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap, place: .low),
+            .init(text: "Hold anywhere to zoom out.\nYou'll see your dots and where you are.", waitFor: .hold, gesture: .hold, place: .low),
             .init(text: "Find the glowing circle\nto go one level deeper.\nThere are 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
         ])
     }
