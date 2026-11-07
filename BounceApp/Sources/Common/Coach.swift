@@ -295,8 +295,8 @@ private struct CoachPicture: View {
                         ctx.stroke(p, with: .color(colors.ink.opacity(0.3)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                     }
                 case .bouncePowers:
-                    // The five power-ups, in a row.
-                    let n = 5, cell: CGFloat = 26, gap: CGFloat = 16
+                    // The six power-ups, in a row.
+                    let n = 6, cell: CGFloat = 24, gap: CGFloat = 12
                     let w = CGFloat(n) * cell + CGFloat(n - 1) * gap
                     let ox = (size.width - w) / 2, oy = size.height / 2 - cell / 2
                     for i in 0..<n {
@@ -312,6 +312,8 @@ private struct CoachPicture: View {
                         case 3:
                             ctx.stroke(Path(r.insetBy(dx: 1, dy: 1)), with: .color(colors.accent), lineWidth: 2)
                             ctx.fill(Path(r.insetBy(dx: 4, dy: 4)), with: .color(colors.accent))
+                        case 5:
+                            ctx.fill(Heart.path(in: r), with: .color(colors.accent))
                         default:
                             ctx.fill(Path(ellipseIn: r), with: .color(colors.accent))
                         }

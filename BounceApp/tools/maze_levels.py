@@ -17,7 +17,7 @@ def gen1(level, attempt):
     wall=[True]*(W*H)
     def op(x,y): wall[y*W+x]=False
     isw=lambda x,y: x<0 or y<0 or x>=W or y>=H or wall[y*W+x]
-    branchy=min(0.2,(level-1)*0.2/19)
+    branchy=min(0.08,(level-1)*0.08/19)
     sx,sy=cw//2,ch-1; vis=[False]*(cw*ch); act=[(sx,sy)]; vis[sy*cw+sx]=True; op(sx*2+1,sy*2+1)
     while act:
         br=roll(1000)/1000<branchy
@@ -26,13 +26,21 @@ def gen1(level, attempt):
         opts=[(dx,dy) for dx,dy in((1,0),(-1,0),(0,1),(0,-1)) if 0<=cx+dx<cw and 0<=cy+dy<ch and not vis[(cy+dy)*cw+cx+dx]]
         if not opts: act.pop(pick); continue
         dx,dy=opts[roll(len(opts))]; nx,ny=cx+dx,cy+dy; vis[ny*cw+nx]=True; op(cx*2+1+dx,cy*2+1+dy); op(nx*2+1,ny*2+1); act.append((nx,ny))
-    extra=int(cw*ch*(0.012+0.0004*level)); made=tries=0
+    extra=int(cw*ch*(0.03+0.001*level)); made=tries=0
     while made<extra and tries<extra*40:
         tries+=1; x=1+roll(W-2); y=1+roll(H-2)
         if not isw(x,y) or (x+y)%2!=1: continue
         a=not isw(x-1,y) and not isw(x+1,y) and isw(x,y-1) and isw(x,y+1)
         d=not isw(x,y-1) and not isw(x,y+1) and isw(x-1,y) and isw(x+1,y)
         if a or d: op(x,y); made+=1
+    for cy in range(ch):
+        for cx in range(cw):
+            x,y=cx*2+1,cy*2+1
+            walls=[(dx,dy) for dx,dy in((1,0),(-1,0),(0,1),(0,-1)) if isw(x+dx,y+dy)]
+            if len(walls)!=3 or not roll(100)<50: continue
+            inside=[d for d in walls if 0<x+d[0]*2<W-1 and 0<y+d[1]*2<H-1]
+            if not inside: continue
+            d=inside[roll(len(inside))]; op(x+d[0],y+d[1])
     start=(sx*2+1,sy*2+1)
     dist={start:0}; prev={}; q=deque([start]); best=start
     while q:
@@ -46,7 +54,7 @@ def gen1(level, attempt):
     dead=sum(1 for y in range(H) for x in range(W) if not isw(x,y) and sum(isw(x+a,y+b) for a,b in((1,0),(-1,0),(0,1),(0,-1)))==3)
     return isw,W,H,start,best,path,dist[best],dead
 def gen(level):
-    target=120+28*level
+    target=110+18*level
     best=None
     for a in range(12):
         g=gen1(level,a)

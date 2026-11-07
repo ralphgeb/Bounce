@@ -16,10 +16,11 @@ W,K,A,B=lab(hx(0xF4F3EF)),lab(hx(0x1A1A1E)),lab(hx(0xFF6129)),lab(hx(0x6FB6F2))
 tok={'light':W,'dark':K,'accent':A,'second':B,'accentSoft':mix(A,W,0.55),'secondDeep':mix(B,K,0.45)}
 PAL=[['light', 'accent', 'second', 'dark'], ['accent', 'light', 'dark', 'second'], ['light', 'accent', 'dark', 'accent'], ['accentSoft', 'second', 'accent', 'dark'], ['light', 'second', 'accent', 'dark'], ['accent', 'light', 'accent', 'dark'], ['second', 'accent', 'light', 'second'], ['accent', 'second', 'dark', 'light'], ['light', 'accent', 'accentSoft', 'dark'], ['accent', 'second', 'secondDeep', 'accentSoft']]
 def make(n):
-    t=(n-1)/49
-    fx='border' if n<=4 else 'alternate' if n<=10 else 'cross' if n<=18 else 'anchors' if n<=28 else 'corners'
-    sh={1:'8',2:'14',3:'20'}.get(n,'all')
-    return (PAL[(n-1)%len(PAL)], 1-0.82*t**0.85, fx, sh)
+    d=min(1,(n-1)/24)
+    fx='border' if n<=6 else 'alternate' if n<=14 else 'cross' if n<=24 else 'anchors' if n<=38 else 'corners'
+    partial=[8,12,16,20,26,30,34]
+    sh=str(partial[n-1]) if n<=len(partial) else 'all'
+    return (PAL[(n-1)%len(PAL)], 1-0.45*d**1.2, fx, sh)
 L=[make(n) for n in range(1,51)]
 cols,rows=7,8
 def fixed(kind,x,y):

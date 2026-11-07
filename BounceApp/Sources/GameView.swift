@@ -193,6 +193,10 @@ extension GameView {
         case .bomb:
             // A big circle, as wide as a square: clears the screen.
             ctx.fill(Path(ellipseIn: r), with: .color(accent.opacity(o)))
+        case .heart:
+            // A heart: an extra life. It beats gently.
+            let beat = CGFloat(1 + 0.06 * sin(game.elapsed * 6))
+            ctx.fill(Heart.path(in: r.insetBy(dx: r.width * (1 - beat) / 2, dy: r.height * (1 - beat) / 2)), with: .color(accent.opacity(o)))
         }
         if b.hit > 0 { ctx.fill(path, with: .color(accent.opacity(b.hit * 0.7 * max(light, 0.5)))) }
     }
@@ -237,6 +241,31 @@ extension GameView {
             ctx.fill(Path(ellipseIn: CGRect(x: ball.p.x - r, y: ball.p.y - r, width: r * 2, height: r * 2)), with: .color(accent))
         }
     }
+}
+
+/// A heart, filling its square.
+enum Heart {
+    static func path(in r: CGRect) -> Path {
+        var p = Path()
+        let w = r.width, h = r.height
+        p.move(to: CGPoint(x: r.midX, y: r.minY + h * 0.92))
+        p.addCurve(to: CGPoint(x: r.minX + w * 0.02, y: r.minY + h * 0.36),
+                   control1: CGPoint(x: r.minX + w * 0.36, y: r.minY + h * 0.72),
+                   control2: CGPoint(x: r.minX + w * 0.02, y: r.minY + h * 0.6))
+        p.addArc(center: CGPoint(x: r.minX + w * 0.27, y: r.minY + h * 0.33), radius: w * 0.25,
+                 startAngle: .degrees(170), endAngle: .degrees(-10), clockwise: false)
+        p.addArc(center: CGPoint(x: r.minX + w * 0.73, y: r.minY + h * 0.33), radius: w * 0.25,
+                 startAngle: .degrees(190), endAngle: .degrees(10), clockwise: false)
+        p.addCurve(to: CGPoint(x: r.midX, y: r.minY + h * 0.92),
+                   control1: CGPoint(x: r.maxX - w * 0.02, y: r.minY + h * 0.6),
+                   control2: CGPoint(x: r.maxX - w * 0.36, y: r.minY + h * 0.72))
+        p.closeSubpath()
+        return p
+    }
+}
+
+struct HeartShape: Shape {
+    func path(in rect: CGRect) -> Path { Heart.path(in: rect) }
 }
 
 /// A square with small cut corners: the row and column clearers.

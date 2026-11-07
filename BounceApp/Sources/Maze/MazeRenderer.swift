@@ -31,6 +31,9 @@ enum MazeRenderer {
         var dotGainAge: Double = 9
         /// A fade to the background (0...1).
         var blink: Double = 0
+        /// Map squares still to find, and how much of the whole maze is showing (0...1).
+        var reveals: Set<Int> = []
+        var revealAll: Double = 0
     }
 
     static func draw(_ ctx: inout GraphicsContext, size: CGSize, scene s: Scene, colors c: Colors) {
@@ -58,6 +61,13 @@ enum MazeRenderer {
             var all = Path()
             for y in y0...y1 { for x in x0...x1 where s.maze.isWall(x, y) { all.addRect(tileRect(x, y)) } }
             ctx.fill(all, with: .color(c.ink.opacity(0.09)))
+        }
+
+        // A map square found: every wall shows for a moment.
+        if s.revealAll > 0.01 {
+            var all = Path()
+            for y in y0...y1 { for x in x0...x1 where s.maze.isWall(x, y) { all.addRect(tileRect(x, y)) } }
+            ctx.fill(all, with: .color(c.ink.opacity(0.5 * s.revealAll)))
         }
 
         // The lit floor: only where the light reaches, fading out with distance.
@@ -105,6 +115,21 @@ enum MazeRenderer {
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - glow, y: p.y - glow, width: glow * 2, height: glow * 2)),
                      with: .radialGradient(Gradient(colors: [c.accent.opacity(0.42 * a), c.accent.opacity(0)]), center: p, startRadius: 0, endRadius: glow))
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)), with: .color(c.accent.opacity(a)))
+        }
+
+        // Map squares: an accent outline around a smaller square, softly glowing, when your light finds them.
+        for key in s.reveals {
+            let x = key % 20_000 - 16, y = key / 20_000 - 16
+            guard x >= x0, x <= x1, y >= y0, y <= y1 else { continue }
+            let q = screen(CGPoint(x: Double(x) + 0.5, y: Double(y) + 0.5))
+            guard light.contains(q) || hypot(Double(q.x - me.x), Double(q.y - me.y)) < Double(T) * 1.5 else { continue }
+            let pulse = 1 + 0.08 * sin(s.time * 3 + Double(key % 5))
+            let side = T * 0.42 * CGFloat(pulse)
+            let r = CGRect(x: q.x - side / 2, y: q.y - side / 2, width: side, height: side)
+            ctx.fill(Path(ellipseIn: r.insetBy(dx: -side, dy: -side)),
+                     with: .radialGradient(Gradient(colors: [c.accent.opacity(0.35), c.accent.opacity(0)]), center: q, startRadius: 0, endRadius: side * 1.5))
+            ctx.stroke(Path(r.insetBy(dx: 1, dy: 1)), with: .color(c.accent), lineWidth: 2)
+            ctx.fill(Path(r.insetBy(dx: side * 0.3, dy: side * 0.3)), with: .color(c.accent))
         }
 
         // The way out: an accent star with its own glow, once your light reaches it.

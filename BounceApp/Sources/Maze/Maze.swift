@@ -41,11 +41,11 @@ struct Maze {
     static let levels = 20
 
     /// Level 1 is 10 × 14 rooms; each level adds 2 across and 3 down (level 20 is 48 × 71).
-    /// Later levels branch more (more dead ends) and have a few more loops. Of 12 tries, each level
-    /// keeps the maze whose way out is closest to 120 + 28 × level steps away, so every level is a
-    /// longer walk than the last (about 160 on level 1, 650 on level 20).
+    /// Mostly long winding corridors with only a little branching (few dead ends), and a few loops.
+    /// Of 12 tries, each level keeps the maze whose way out is closest to 110 + 18 × level steps
+    /// away, so every level is a longer walk than the last without getting mean.
     static func generate(level: Int) -> Maze {
-        let target = 120 + 28 * level
+        let target = 110 + 18 * level
         var best: (maze: Maze, steps: Int)?
         for attempt in 0..<12 {
             let m = build(level: level, attempt: attempt)
@@ -63,7 +63,7 @@ struct Maze {
 
         // Carve a growing tree from the bottom middle. Mostly it carries on from the newest room
         // (long winding corridors); more and more often it branches from an older one.
-        let branchy = min(0.2, Double(level - 1) * 0.2 / 19)
+        let branchy = min(0.08, Double(level - 1) * 0.08 / 19)
         let sx = cw / 2, sy = ch - 1
         var visited = Array(repeating: false, count: cw * ch)
         var active = [(sx, sy)]
@@ -88,8 +88,8 @@ struct Maze {
             active.append((nx, ny))
         }
 
-        // Knock out some walls to make loops: a few on level 1, a few more later.
-        let extra = Int(Double(cw * ch) * (0.012 + 0.0004 * Double(level)))
+        // Knock out some walls to make loops: more ways round, so you're less often stuck.
+        let extra = Int(Double(cw * ch) * (0.03 + 0.001 * Double(level)))
         var made = 0, tries = 0
         while made < extra && tries < extra * 40 {
             tries += 1
@@ -98,6 +98,23 @@ struct Maze {
             let across = !m.isWall(x - 1, y) && !m.isWall(x + 1, y) && m.isWall(x, y - 1) && m.isWall(x, y + 1)
             let down = !m.isWall(x, y - 1) && !m.isWall(x, y + 1) && m.isWall(x - 1, y) && m.isWall(x + 1, y)
             if across || down { open(x, y); made += 1 }
+        }
+
+        // Open about half the dead ends into the next corridor, so wrong turns are fewer and shorter.
+        for cy in 0..<ch {
+            for cx in 0..<cw {
+                let x = cx * 2 + 1, y = cy * 2 + 1
+                var walls: [(Int, Int)] = []
+                for (dx, dy) in dirs where m.isWall(x + dx, y + dy) { walls.append((dx, dy)) }
+                guard walls.count == 3, roll(100) < 50 else { continue }
+                let inside = walls.filter { d in
+                    let nx = x + d.0 * 2, ny = y + d.1 * 2
+                    return nx > 0 && ny > 0 && nx < m.width - 1 && ny < m.height - 1
+                }
+                guard !inside.isEmpty else { continue }
+                let d = inside[roll(inside.count)]
+                open(x + d.0, y + d.1)
+            }
         }
 
         m.start = (sx * 2 + 1, sy * 2 + 1)
@@ -159,30 +176,33 @@ enum Lighting {
                      rays: Int, lit: inout [Int: Double], floors: inout Set<Int>) -> [CGPoint] {
         let full = halfAngle >= .pi
         var outline: [CGPoint] = full ? [] : [o]
-        let step = 0.045
         let count = full ? rays : rays + 1
         for k in 0..<count {
             let a = full ? Double(k) / Double(rays) * 2 * .pi
                          : angle - halfAngle + 2 * halfAngle * Double(k) / Double(rays)
             let dx = cos(a), dy = sin(a)
-            var t = 0.0
-            var end = CGPoint(x: o.x + dx * range, y: o.y + dy * range)
-            var last = o
-            while t < range {
-                t += step
-                let p = CGPoint(x: o.x + dx * t, y: o.y + dy * t)
-                let tx = Int(floor(p.x)), ty = Int(floor(p.y))
-                if maze.isWall(tx, ty) {
+            // Walk the grid square by square (DDA), so each ray stops exactly on a wall's edge.
+            let ox = Double(o.x), oy = Double(o.y)
+            var mx = Int(floor(ox)), my = Int(floor(oy))
+            let deltaX = dx == 0 ? 1e30 : abs(1 / dx), deltaY = dy == 0 ? 1e30 : abs(1 / dy)
+            let stepX = dx < 0 ? -1 : 1, stepY = dy < 0 ? -1 : 1
+            var sideX = dx < 0 ? (ox - Double(mx)) * deltaX : (Double(mx) + 1 - ox) * deltaX
+            var sideY = dy < 0 ? (oy - Double(my)) * deltaY : (Double(my) + 1 - oy) * deltaY
+            var end = CGPoint(x: ox + dx * range, y: oy + dy * range)
+            floors.insert(Maze.key(mx, my))
+            while true {
+                let t: Double
+                if sideX < sideY { t = sideX; sideX += deltaX; mx += stepX } else { t = sideY; sideY += deltaY; my += stepY }
+                if t >= range { break }
+                if maze.isWall(mx, my) {
                     // The light stops at the first wall: that wall lights up, nothing behind it does.
-                    let id = Maze.key(tx, ty)
+                    let id = Maze.key(mx, my)
                     let b = max(0, 1 - t / range)
                     if b > (lit[id] ?? 0) { lit[id] = b }
-                    end = last
+                    end = CGPoint(x: ox + dx * t, y: oy + dy * t)
                     break
                 }
-                floors.insert(Maze.key(tx, ty))
-                last = p
-                if t >= range { end = p }
+                floors.insert(Maze.key(mx, my))
             }
             outline.append(end)
         }

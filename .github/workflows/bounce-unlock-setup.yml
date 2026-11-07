@@ -1,0 +1,27 @@
+name: Bounce – set up Unlock all games
+
+# Run once by hand (Actions tab › this workflow › Run workflow): creates the £1.99 one-time
+# "Unlock all games" purchase in App Store Connect. Safe to run again. Uses the same App Store
+# Connect key as the TestFlight upload.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/scripts/setup_bounce_unlock.py"
+      - ".github/workflows/bounce-unlock-setup.yml"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pyjwt cryptography requests
+      - run: python .github/scripts/setup_bounce_unlock.py

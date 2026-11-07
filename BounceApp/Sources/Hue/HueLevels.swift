@@ -76,9 +76,9 @@ enum HueLevels {
     static let rows = 8
     static let count = 50
 
-    /// Easy to hard. The first levels are bright, with the whole border fixed and only a few squares
-    /// out of place; then fewer squares are fixed and everything is shuffled; and the colours draw
-    /// closer and closer together, until on level 50 the steps between squares are very subtle.
+    /// Easy to hard, gently. The first levels are bright, with the whole border fixed and only a
+    /// few squares out of place. Difficulty climbs until about level 25 and then levels off: after
+    /// that the colours stay about as close as there, so a long run stays enjoyable.
     static let all: [HueLevel] = (1...count).map(make)
 
     private static let palettes: [[HueLevel.Corner]] = [
@@ -95,11 +95,12 @@ enum HueLevels {
     ]
 
     private static func make(_ n: Int) -> HueLevel {
-        let t = Double(n - 1) / Double(count - 1)
-        let fixed: HueLevel.Fixed = n <= 4 ? .border : n <= 10 ? .alternate : n <= 18 ? .cross : n <= 28 ? .anchors : .corners
-        let shuffled: Int? = n == 1 ? 8 : n == 2 ? 14 : n == 3 ? 20 : nil
+        let d = min(1, Double(n - 1) / 24)                  // 0 on level 1, 1 from level 25
+        let fixed: HueLevel.Fixed = n <= 6 ? .border : n <= 14 ? .alternate : n <= 24 ? .cross : n <= 38 ? .anchors : .corners
+        let partial = [8, 12, 16, 20, 26, 30, 34]           // squares out of place on levels 1 to 7
+        let shuffled: Int? = n <= partial.count ? partial[n - 1] : nil
         return HueLevel(corners: palettes[(n - 1) % palettes.count],
-                        contrast: 1 - 0.82 * pow(t, 0.85),
+                        contrast: 1 - 0.45 * pow(d, 1.2),   // never closer than 55%
                         fixed: fixed, shuffled: shuffled)
     }
 

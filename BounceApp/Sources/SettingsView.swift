@@ -8,6 +8,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("iconFollowsLook") private var iconFollowsLook = false
     @State private var tutorialsReset = false
+    @State private var unlock = Unlock.shared
+    @State private var showUnlock = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         NavigationStack {
@@ -30,17 +33,21 @@ struct SettingsView: View {
                                 Haptics.tap(.light)
                                 if iconFollowsLook { setIcon(look) }
                             } label: {
-                                Rectangle()
-                                    .fill(look.accent.color)
-                                    .frame(width: 30, height: 30)
-                                    .padding(5)
-                                    .overlay(
-                                        Rectangle()
-                                            .strokeBorder(colors.ink, lineWidth: 1.5)
-                                            .opacity(look.id == settings.lookID ? 1 : 0)
-                                    )
-                                    .frame(maxWidth: .infinity)
-                                    .contentShape(Rectangle())
+                                VStack(spacing: 7) {
+                                    LookSwatch(look: look, dark: scheme == .dark)
+                                        .frame(width: 40, height: 40)
+                                        .padding(5)
+                                        .overlay(
+                                            Rectangle()
+                                                .strokeBorder(colors.ink, lineWidth: 1.5)
+                                                .opacity(look.id == settings.lookID ? 1 : 0)
+                                        )
+                                    Text(look.name)
+                                        .font(.system(size: 10, weight: look.id == settings.lookID ? .semibold : .regular))
+                                        .foregroundStyle(colors.ink.opacity(look.id == settings.lookID ? 0.9 : 0.5))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(look.name)
@@ -74,6 +81,29 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
+                Section {
+                    if unlock.owned && !unlock.reset {
+                        LabeledContent("All games", value: "Unlocked")
+                    } else {
+                        Button { showUnlock = true } label: {
+                            Text("Unlock all games · \(unlock.price)").foregroundStyle(colors.accent)
+                        }
+                    }
+                    Button("Restore purchases") { Task { await unlock.restore() } }
+                        .foregroundStyle(colors.ink)
+                    Toggle("Apply paywall", isOn: $unlock.paywallOn).tint(colors.accent)
+                    Button("Reset purchase") {
+                        unlock.resetPurchase()
+                        Haptics.notify(.warning)
+                    }
+                    .foregroundStyle(colors.ink)
+                } header: {
+                    Text("Unlock")
+                } footer: {
+                    Text("Apply paywall and Reset purchase are for trying it out: switch the paywall off to open everything, or reset to lock the games again and buy once more (in TestFlight nothing is charged).")
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
                 Section("Bounce") {
                     LabeledContent("Best score", value: "\(settings.best)")
                     LabeledContent("Longest game", value: settings.longest > 0 ? formatTime(settings.longest) : "–")
@@ -83,7 +113,6 @@ struct SettingsView: View {
                 Section("Maze") {
                     LabeledContent("Deepest level", value: settings.mazeDeepest > 0 ? "\(settings.mazeDeepest)" : "–")
                     LabeledContent("Fastest level 1", value: settings.mazeTimes["1"].map(formatTime) ?? "–")
-                    Toggle("Show the walls", isOn: $settings.mazeRevealWalls).tint(colors.accent)
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
@@ -103,6 +132,7 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
             }
+            .sheet(isPresented: $showUnlock) { UnlockSheet(colors: colors) }
             .scrollContentBackground(.hidden)
             .background(colors.background)
             .foregroundStyle(colors.ink)
@@ -120,6 +150,35 @@ struct SettingsView: View {
         let app = UIApplication.shared
         guard app.supportsAlternateIcons, app.alternateIconName != look.iconName else { return }
         app.setAlternateIconName(look.iconName) { _ in }
+    }
+}
+
+/// A look as a small 3 × 3 grid: a blend from its light accent (top right) through the accent
+/// (top left) to its main colour (bottom right), in OKLab so the steps look even.
+struct LookSwatch: View {
+    let look: Look
+    let dark: Bool
+
+    var body: some View {
+        let p = dark ? look.dark : look.light
+        let accent = HueColor.lab(look.accent)
+        let ink = HueColor.lab(p.ink)
+        let soft = HueColor.mix(accent, HueColor.lab(p.background), 0.6)
+        let mid = HueColor.mix(accent, ink, 0.5)
+        Canvas { ctx, size in
+            let gap: CGFloat = 2
+            let cell = (size.width - gap * 2) / 3
+            for y in 0..<3 {
+                for x in 0..<3 {
+                    let u = Double(x) / 2, v = Double(y) / 2
+                    // Corners: accent, soft accent, a mid tone, the main colour.
+                    let top = HueColor.mix(accent, soft, u), bottom = HueColor.mix(mid, ink, u)
+                    let c = HueColor.rgb(HueColor.mix(top, bottom, v)).color
+                    ctx.fill(Path(CGRect(x: CGFloat(x) * (cell + gap), y: CGFloat(y) * (cell + gap), width: cell, height: cell)), with: .color(c))
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

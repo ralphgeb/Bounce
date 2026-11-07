@@ -10,6 +10,7 @@ struct Block {
         case row        // chamfered, line across: clears its row
         case column     // chamfered, line down: clears its column
         case bomb       // big circle: clears every square on the screen
+        case heart      // accent heart: an extra life
     }
 
     var rect: CGRect
@@ -211,7 +212,7 @@ final class Game {
             var hp = roll < 0.12 + level * 0.06 ? 3 : roll < 0.38 + level * 0.08 ? 2 : 1
             // Special squares, at random, roughly: a row or column clearer every 20 squares, a split
             // every 50, a blaster every 100 and a screen-clearing circle every 150.
-            let k = specials ? Self.randomKind() : .plain
+            let k = specials ? Self.randomKind(elapsed: elapsed) : .plain
             if k != .plain { hp = 1 }
             let x = side + CGFloat(c) * (cell + gap)
             row.append(Block(rect: CGRect(x: x, y: y, width: cell, height: cell), hp: hp, max: hp, kind: k))
@@ -439,8 +440,8 @@ final class Game {
         score += b.max * m
         ball.chain = min(ball.chain + 1, 9)
         ball.run += 1
-        // Twenty in a row without the paddle: an extra life (at most 5).
-        if ball.run % 20 == 0 {
+        // Ten in a row without the paddle: an extra life (at most 5).
+        if ball.run % 10 == 0 {
             if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
             else { score += 50; show("+50") }
             Haptics.notify(.success)
@@ -486,6 +487,10 @@ final class Game {
                 flash = 1
                 show("Clear")
                 Haptics.notify(.success)
+            case .heart:
+                if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
+                else { score += 50; show("+50") }
+                Haptics.notify(.success)
             }
             for c in cleared {
                 score += c.max * mult
@@ -503,14 +508,19 @@ final class Game {
     }
 
     private static let bounceOdds: [(Block.Kind, Double)] = [
-        (.split, 0.02), (.row, 0.025), (.column, 0.025), (.blaster, 0.01), (.bomb, 1.0 / 150),
+        (.split, 0.02), (.row, 0.025), (.column, 0.025), (.blaster, 0.011), (.bomb, 1.0 / 150), (.heart, 1.0 / 75),
     ]
-    private static func randomKind() -> Block.Kind {
+
+    /// As the game speeds up, power squares turn up more often (up to 1.6 times after 3 minutes),
+    /// and hearts most of all (from one in 75 up to one in 30).
+    private static func randomKind(elapsed: Double) -> Block.Kind {
         let r = Double.random(in: 0..<1)
-        let odds = bounceOdds
+        let ramp = min(1, elapsed / 180)
+        let more = 1 + 0.6 * ramp
+        let heartOdds = min(1.0 / 30, (1.0 / 75) * (1 + 1.5 * ramp))
         var sum = 0.0
-        for (kind, p) in odds {
-            sum += p
+        for (kind, p) in bounceOdds {
+            sum += kind == .heart ? heartOdds : p * more
             if r < sum { return kind }
         }
         return .plain

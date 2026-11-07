@@ -24,13 +24,15 @@ struct MazeView: View {
                     maze: m, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
                     range: game.range, tile: tile,
                     moving: game.moving, squash: game.squash, bump: game.bump, flash: game.flash,
-                    time: game.totalTime, revealWalls: Settings.shared.mazeRevealWalls)
+                    time: game.totalTime)
                 scene.map = game.map
                 scene.seen = game.seen
                 scene.camera = camera
                 scene.dotGain = game.dotGain
                 scene.dotGainAge = game.dotGainAge
                 scene.blink = game.blink
+                scene.reveals = game.reveals
+                scene.revealAll = game.revealLeft > 0 ? min(1, game.map * 1.2) : 0
                 MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
             }
             .ignoresSafeArea()
@@ -218,6 +220,7 @@ struct MazeHome: View {
                 ElasticLogo(word: "MAZE", fills: [colors.ink, colors.accent, colors.ink.opacity(0.5), colors.ink.opacity(0.22)],
                             ink: colors.ink, drag: drag, dropped: dropped)
                 rules.padding(.top, 34)
+                levels.padding(.top, 30)
                 Spacer(minLength: 16)
                 Text(result)
                     .font(.system(size: 14).monospacedDigit())
@@ -225,15 +228,48 @@ struct MazeHome: View {
                     .frame(minHeight: 20)
                 Spacer(minLength: 16)
                 Spacer(minLength: 16)
-                OutlineButton(title: game.lastRun == nil ? "Start" : "Again", colors: colors) { game.start() }
+                OutlineButton(title: "Level \(game.chosen)", colors: colors) { game.start() }
                     .padding(.bottom, 64)
             }
         }
         .elasticDrag($drag)
         .onAppear {
+            let reached = max(1, min(Maze.levels, Settings.shared.mazeDeepest))
+            if game.chosen > reached || game.lastRun == nil { game.chosen = reached }
             dropped = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
         }
+    }
+
+    /// The twenty levels as two rows of squares: ones you've reached are filled (tap one to start
+    /// there), the one picked is outlined, the rest are still dark.
+    private var levels: some View {
+        let reached = max(1, Settings.shared.mazeDeepest)
+        let grid = Array(repeating: GridItem(.fixed(22), spacing: 6), count: 10)
+        return LazyVGrid(columns: grid, spacing: 6) {
+            ForEach(1...Maze.levels, id: \.self) { n in
+                let open = n <= reached
+                Button {
+                    guard open else { Haptics.tap(.soft, intensity: 0.3); return }
+                    game.chosen = n
+                    Haptics.tap(.light)
+                } label: {
+                    ZStack {
+                        Rectangle().fill(open ? colors.accent.opacity(0.25 + 0.75 * Double(n) / Double(Maze.levels)) : colors.ink.opacity(0.06))
+                        if game.chosen == n {
+                            Rectangle().strokeBorder(colors.ink, lineWidth: 1.5).padding(-3)
+                        }
+                        Text("\(n)")
+                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(open ? Color.white.opacity(0.9) : colors.ink.opacity(0.25))
+                    }
+                    .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(open ? "Level \(n)" : "Level \(n), not reached yet")
+            }
+        }
+        .frame(width: 10 * 22 + 9 * 6)
     }
 
     private var rules: some View {
@@ -242,6 +278,7 @@ struct MazeHome: View {
             rule(glowMark, "Your light shines all around. Walls cast shadows")
             rule(Circle().fill(colors.accent).frame(width: 6, height: 6), "Tap to drop a dot, tap again to pick it up")
             rule(mapMark, "Pinch to see the map")
+            rule(revealMark, "Find one to see the whole maze for 3 seconds")
             rule(goalMark, "Reach the star to go deeper. 20 levels")
         }
     }
@@ -260,6 +297,14 @@ struct MazeHome: View {
             Rectangle().fill(colors.accent).frame(width: 4, height: 4).offset(x: -2, y: 2)
         }
         .frame(width: 14, height: 14)
+    }
+
+    private var revealMark: some View {
+        ZStack {
+            Rectangle().strokeBorder(colors.accent, lineWidth: 1.5)
+            Rectangle().fill(colors.accent).padding(4)
+        }
+        .frame(width: 13, height: 13)
     }
 
     private var goalMark: some View {

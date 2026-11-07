@@ -15,6 +15,8 @@ struct MenuView: View {
     @State private var pressed: Int?
     @State private var travelled: CGFloat = 0
     @State private var appeared = false
+    @State private var unlock = Unlock.shared
+    @State private var showUnlock = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -54,6 +56,7 @@ struct MenuView: View {
                     record: s.hueSolved > 0 ? "\(s.hueSolved)/\(HueLevels.count)" : nil)
         }
         .padding(.bottom, 6)
+        .sheet(isPresented: $showUnlock) { UnlockSheet(colors: colors) }
         .onAppear {
             appeared = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8)) { appeared = true }
@@ -65,7 +68,9 @@ struct MenuView: View {
     }
 
     private func section(_ index: Int, _ screen: Screen, word: String, fills: [Color], line: String, record: String?) -> some View {
-        VStack(spacing: 12) {
+        // Bounce is free; the others open with Unlock all games.
+        let locked = screen != .bounce && !unlock.isUnlocked
+        return VStack(spacing: 12) {
             ElasticLogo(word: word, fills: fills, ink: colors.ink, squareSize: 22, letterSize: 18,
                         drag: active == index ? drag : CGSize(width: drag.width * 0.1, height: drag.height * 0.1),
                         dropped: appeared)
@@ -82,7 +87,9 @@ struct MenuView: View {
                 }
             }
         }
+        .opacity(locked ? 0.4 : 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay { if locked { LockBadge(colors: colors) } }
         .background(colors.ink.opacity(pressed == index && travelled < 10 ? 0.04 : 0))
         .contentShape(Rectangle())
         .scaleEffect(pressed == index && travelled < 10 ? 0.985 : 1)
@@ -106,13 +113,13 @@ struct MenuView: View {
                     pressed = nil
                     if tapped {
                         Haptics.tap(.medium)
-                        open(screen)
+                        if locked { showUnlock = true } else { open(screen) }
                     }
                 }
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(word.capitalized). \(line)")
+        .accessibilityLabel(locked ? "\(word.capitalized). Locked" : "\(word.capitalized). \(line)")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { open(screen) }
+        .accessibilityAction { if locked { showUnlock = true } else { open(screen) } }
     }
 }

@@ -33,6 +33,8 @@ final class MazeGame {
     /// After a run: the level you got to and how long it took (for the landing page).
     private(set) var lastRun: (level: Int, time: Double)?
     private(set) var newRecord = false
+    /// The level picked on the landing page (any level you've reached).
+    var chosen = 1
     private(set) var dotsLeft = 10
     /// The last dots you were given, and when (for the little animation).
     private(set) var dotGain = 0
@@ -49,6 +51,10 @@ final class MazeGame {
     @ObservationIgnored private(set) var light: [CGPoint] = []
     @ObservationIgnored private(set) var lit: [Int: Double] = [:]
     @ObservationIgnored private(set) var dots = Set<Int>()
+    /// Map squares hidden in the maze: step on one and the whole maze shows for 3 seconds.
+    @ObservationIgnored private(set) var reveals = Set<Int>()
+    @ObservationIgnored private(set) var revealLeft: Double = 0
+    let revealTime: Double = 3
     /// Walls you have lit on this level: shown on the map.
     @ObservationIgnored private(set) var seen = Set<Int>()
     /// 0 = normal view, 1 = the whole map. Eases towards mapTarget.
@@ -90,14 +96,15 @@ final class MazeGame {
     // MARK: Phases
 
     func start() {
-        level = 1
+        level = max(1, min(Maze.levels, chosen))
         totalTime = 0
         newRecord = false
-        dotsLeft = 0
+        // 10 dots on level 1, and the 3 a level you'd have earned getting this far.
+        dotsLeft = 3 * (level - 1)
         load(level)
         phase = .playing
         ticker.start()
-        show("Level 1")
+        show("Level \(level)")
         coach.begin("maze", steps: [
             .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft),
             .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight),
@@ -126,6 +133,8 @@ final class MazeGame {
         facing = -.pi / 2; facingTarget = facing
         dots = []
         seen = []
+        revealLeft = 0
+        placeReveals(l)
         map = 0; mapTarget = 0
         // 10 dots on level 1; each new level adds 3 to what you have left.
         giveDots(l == 1 ? firstDots : dotsPerLevel)
@@ -137,6 +146,25 @@ final class MazeGame {
     private func center(_ t: (x: Int, y: Int)) -> CGPoint { CGPoint(x: Double(t.x) + 0.5, y: Double(t.y) + 0.5) }
 
     // MARK: Dots
+
+    /// One map square on levels 1 to 4, then one more every four levels (at most 5), on floor
+    /// tiles away from the start and the way out. The same for everyone.
+    private func placeReveals(_ l: Int) {
+        reveals = []
+        var rng = SeededRandom(seed: UInt64(l) &* 92_821 &+ 3)
+        let want = min(5, 1 + (l - 1) / 4)
+        var tries = 0
+        while reveals.count < want && tries < 2000 {
+            tries += 1
+            let x = 1 + 2 * Int(rng.next() % UInt64((maze.width - 1) / 2))
+            let y = 1 + 2 * Int(rng.next() % UInt64((maze.height - 1) / 2))
+            guard !maze.isWall(x, y) else { continue }
+            let fromStart = abs(x - maze.start.x) + abs(y - maze.start.y)
+            let fromGoal = abs(x - maze.goal.x) + abs(y - maze.goal.y)
+            guard fromStart > 10, fromGoal > 8 else { continue }
+            reveals.insert(Maze.key(x, y))
+        }
+    }
 
     private func giveDots(_ n: Int) {
         dotsLeft += n
@@ -319,6 +347,19 @@ final class MazeGame {
         map += (mapTarget - map) * min(1, dt * 9)
         if abs(map - mapTarget) < 0.002 { map = mapTarget }
         if mapDone && map < 0.02 { mapDone = false; coach.did(.hold) }
+
+        // A map square under you: zoom out over the whole maze, every wall showing, for 3 seconds.
+        let here = Maze.key(Int(floor(pos.x)), Int(floor(pos.y)))
+        if reveals.contains(here) {
+            reveals.remove(here)
+            revealLeft = revealTime
+            show("Map")
+            Haptics.notify(.success)
+        }
+        if revealLeft > 0 {
+            revealLeft = max(0, revealLeft - dt)
+            mapTarget = revealLeft > 0 ? 1 : (pinchedOut ? mapTarget : 0)
+        }
         if let start = blinkTime {
             // Fade out, come back to the spot while it's dark, fade in.
             let b = start + dt

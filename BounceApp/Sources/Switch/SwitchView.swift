@@ -2,26 +2,17 @@ import SwiftUI
 
 /// Switch's colours: five that go together, built around the theme's accent (Colour), and the logo.
 enum SwitchColors {
-    /// The accent and four colours chosen to go with it: two neighbours either side of it on the
-    /// colour wheel and two from the opposite side, a little softer, at lightnesses that keep all
-    /// five easy to tell apart (in OKLCh).
-    static func colourful(_ accent: Color) -> [Color] {
-        let a = HueColor.lab(RGB(accent))
-        let chroma = max(0.1, min(0.16, hypot(a.a, a.b)))
-        let h = atan2(a.b, a.a)
-        let deg = Double.pi / 180
-        let partners: [(turn: Double, l: Double, c: Double)] = [
-            (-38 * deg, 0.58, chroma),          // a deeper neighbour
-            (34 * deg, 0.84, chroma * 0.85),    // a lighter neighbour
-            (168 * deg, 0.66, chroma * 0.7),    // the complement, softened
-            (205 * deg, 0.45, chroma * 0.65),   // a deep cool partner
+    /// Colour: a richer take on Mono, all built from the accent and the main colour so they sit
+    /// together: a deep accent, a light accent, the accent itself, a dark grey and a light grey.
+    static func colourful(_ colors: Colors) -> [Color] {
+        let a = colors.accent
+        return [
+            HueColor.shade(a, -0.42),          // deep accent
+            HueColor.shade(a, 0.5),            // light accent
+            colors.ink.opacity(0.85),          // dark grey
+            colors.ink.opacity(0.3),           // light grey
+            a,                                 // the accent (index 4, as in Mono)
         ]
-        let others = partners.map { p -> Color in
-            let hh = h + p.turn
-            return HueColor.rgb(HueColor.Lab(l: p.l, a: p.c * cos(hh), b: p.c * sin(hh))).color
-        }
-        // The accent last, as in Mono (index 4 is the accent there too).
-        return others + [accent]
     }
 
     static func logo(_ colors: Colors) -> [Color] {
@@ -284,7 +275,7 @@ struct SwitchView: View {
     }
 
     private func shadeColor(_ s: Int) -> Color {
-        if game.palette == .colour { return SwitchColors.colourful(colors.accent)[min(4, max(0, s))] }
+        if game.palette == .colour { return SwitchColors.colourful(colors)[min(4, max(0, s))] }
         switch s {
         // Even steps of the main colour, from 90% down to 15%, and the accent.
         case 0: return colors.ink.opacity(0.9)
@@ -302,18 +293,22 @@ struct SwitchView: View {
         let r = CGRect(x: cx - size / 2, y: cy - size / 2, width: size, height: size)
         let color = shadeColor(g.shade).opacity(alpha)
         let mark = colors.background.opacity(alpha)
+        var shape = Path(r)
         switch g.power {
         case nil:
-            ctx.fill(Path(r), with: .color(color))
+            ctx.fill(shape, with: .color(color))
+            return
         case .row?, .column?:
-            ctx.fill(Chamfer.path(in: r), with: .color(color))
+            shape = Chamfer.path(in: r)
+            ctx.fill(shape, with: .color(color))
             let len = r.width * 0.46, t = max(2, r.width * 0.07)
             let line = g.power == .row
                 ? CGRect(x: r.midX - len / 2, y: r.midY - t / 2, width: len, height: t)
                 : CGRect(x: r.midX - t / 2, y: r.midY - len / 2, width: t, height: len)
             ctx.fill(Path(line), with: .color(mark))
         case .bomb?:
-            ctx.fill(Path(ellipseIn: r), with: .color(color))
+            shape = Path(ellipseIn: r)
+            ctx.fill(shape, with: .color(color))
             let d = r.width * 0.2
             ctx.fill(Path(ellipseIn: CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)), with: .color(mark))
         case .shade?:
@@ -323,26 +318,42 @@ struct SwitchView: View {
             p.addLine(to: CGPoint(x: r.midX, y: r.maxY))
             p.addLine(to: CGPoint(x: r.minX, y: r.midY))
             p.closeSubpath()
-            ctx.fill(p, with: .color(color))
-            // The shine: a soft diagonal band across the diamond, fading in and out.
-            let glow = 0.5 + 0.5 * sin(game.clock * 2.4 + Double(g.id % 7))
-            var band = Path()
-            band.move(to: CGPoint(x: r.minX + r.width * 0.18, y: r.minY + r.height * 0.06))
-            band.addLine(to: CGPoint(x: r.minX + r.width * 0.42, y: r.minY + r.height * 0.06))
-            band.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.42))
-            band.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.18))
-            band.closeSubpath()
-            var band2 = Path()
-            band2.move(to: CGPoint(x: r.minX + r.width * 0.5, y: r.minY + r.height * 0.06))
-            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.58, y: r.minY + r.height * 0.06))
-            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.58))
-            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.5))
-            band2.closeSubpath()
-            ctx.drawLayer { l in
-                l.clip(to: p)
-                l.fill(band, with: .color(Color.white.opacity((0.15 + 0.45 * glow) * alpha)))
-                l.fill(band2, with: .color(Color.white.opacity((0.08 + 0.3 * glow) * alpha)))
-            }
+            shape = p
+            ctx.fill(shape, with: .color(color))
+        }
+        shine(&ctx, shape, r, id: g.id, alpha: alpha, strong: g.power == .shade)
+    }
+
+    /// Every power piece shines: a soft diagonal band of light sweeps across it from the top left,
+    /// then rests, over and over (each piece at its own moment). The diamond's shine is brighter.
+    private func shine(_ ctx: inout GraphicsContext, _ shape: Path, _ r: CGRect, id: Int, alpha: Double, strong: Bool) {
+        let period = 2.6
+        let t = (game.clock + Double(id % 9) * 0.37).truncatingRemainder(dividingBy: period) / period
+        let sweep = 0.42                       // the part of each cycle the band is moving
+        guard t < sweep else { return }
+        let k = t / sweep
+        let eased = k * k * (3 - 2 * k)
+        // The band runs along the diagonal from top left to bottom right.
+        let span = r.width + r.height
+        let centre = -r.width * 0.3 + (span + r.width * 0.6) * CGFloat(eased)
+        let half = r.width * 0.22
+        var band = Path()
+        band.move(to: CGPoint(x: r.minX + centre - half, y: r.minY))
+        band.addLine(to: CGPoint(x: r.minX + centre + half, y: r.minY))
+        band.addLine(to: CGPoint(x: r.minX + centre + half - r.height, y: r.maxY))
+        band.addLine(to: CGPoint(x: r.minX + centre - half - r.height, y: r.maxY))
+        band.closeSubpath()
+        let peak = (strong ? 0.6 : 0.38) * alpha * sin(Double.pi * k)
+        let a = CGPoint(x: r.minX + centre - half, y: r.minY + r.height / 2)
+        let b = CGPoint(x: r.minX + centre + half, y: r.minY + r.height / 2)
+        ctx.drawLayer { l in
+            l.clip(to: shape)
+            l.fill(band, with: .linearGradient(
+                Gradient(stops: [
+                    .init(color: Color.white.opacity(0), location: 0),
+                    .init(color: Color.white.opacity(peak), location: 0.5),
+                    .init(color: Color.white.opacity(0), location: 1),
+                ]), startPoint: a, endPoint: b))
         }
     }
 }

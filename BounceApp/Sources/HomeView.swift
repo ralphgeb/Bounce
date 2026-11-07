@@ -50,6 +50,7 @@ struct HomeView: View {
             rule(lineMark(across: false).frame(width: 16, height: 16), "Clears its column")
             rule(blasterMark.frame(width: 16, height: 16), "Shoots from the paddle for 3 seconds")
             rule(bombMark.frame(width: 16, height: 16), "Clears every square on the screen")
+            rule(HeartShape().fill(colors.accent).frame(width: 16, height: 16), "An extra life")
         }
     }
 
