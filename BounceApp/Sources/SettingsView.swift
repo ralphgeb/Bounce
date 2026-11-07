@@ -61,6 +61,19 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
+                Section {
+                    Button {
+                        Coach.resetAll()
+                        tutorialsReset = true
+                        Haptics.notify(.success)
+                    } label: {
+                        Text(tutorialsReset ? "Tutorials will show again" : "Show tutorials again")
+                            .foregroundStyle(tutorialsReset ? colors.ink.opacity(0.5) : colors.accent)
+                    }
+                    .disabled(tutorialsReset)
+                }
+                .listRowBackground(colors.ink.opacity(0.04))
+
                 Section("Bounce") {
                     LabeledContent("Best score", value: "\(settings.best)")
                     LabeledContent("Longest game", value: settings.longest > 0 ? formatTime(settings.longest) : "–")
@@ -84,18 +97,6 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
-                Section {
-                    Button {
-                        Coach.resetAll()
-                        tutorialsReset = true
-                        Haptics.notify(.success)
-                    } label: {
-                        Text(tutorialsReset ? "Tutorials will show again" : "Show tutorials again")
-                            .foregroundStyle(tutorialsReset ? colors.ink.opacity(0.5) : colors.accent)
-                    }
-                    .disabled(tutorialsReset)
-                }
-                .listRowBackground(colors.ink.opacity(0.04))
 
                 Section {
                     LabeledContent("Version", value: Bundle.main.version)

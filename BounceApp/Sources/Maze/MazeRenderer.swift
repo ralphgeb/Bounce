@@ -29,6 +29,8 @@ enum MazeRenderer {
         /// New dots: how many, and seconds since.
         var dotGain = 0
         var dotGainAge: Double = 9
+        /// A fade to the background (0...1).
+        var blink: Double = 0
     }
 
     static func draw(_ ctx: inout GraphicsContext, size: CGSize, scene s: Scene, colors c: Colors) {
@@ -77,14 +79,15 @@ enum MazeRenderer {
         }
 
         // Walls the light lands on: bright up close, gone into the dark further away.
-        var bands: [Path] = Array(repeating: Path(), count: 10)
+        let steps = 32
+        var bands: [Path] = Array(repeating: Path(), count: steps)
         for (key, b) in s.lit {
             let x = key % 20_000 - 16, y = key / 20_000 - 16
             guard x >= x0, x <= x1, y >= y0, y <= y1 else { continue }
-            bands[min(9, Int(b * 10))].addRect(tileRect(x, y))
+            bands[min(steps - 1, Int(b * Double(steps)))].addRect(tileRect(x, y))
         }
         for (i, p) in bands.enumerated() where !p.isEmpty {
-            let b = (Double(i) + 0.5) / 10
+            let b = (Double(i) + 0.5) / Double(steps)
             ctx.fill(p, with: .color(c.ink.opacity(min(1, 0.06 + pow(b, 1.05) * 1.05) * k)))
         }
 
@@ -157,6 +160,9 @@ enum MazeRenderer {
 
         if s.flash > 0 {
             ctx.fill(Path(full), with: .color(c.accent.opacity(s.flash * 0.22)))
+        }
+        if s.blink > 0 {
+            ctx.fill(Path(full), with: .color(c.background.opacity(s.blink)))
         }
     }
 }

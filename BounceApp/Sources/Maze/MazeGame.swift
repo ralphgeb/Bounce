@@ -55,6 +55,12 @@ final class MazeGame {
     @ObservationIgnored private(set) var map: Double = 0
     @ObservationIgnored var mapTarget: Double = 0
     @ObservationIgnored private var pinchedOut = false
+    /// Tutorial: where to drop (or pick up) the dot, and how many slides away from it you've gone.
+    @ObservationIgnored private var anchor: (x: Int, y: Int)?
+    @ObservationIgnored private var awayMoves = 0
+    /// A fade to the background and back (0...1), when the tutorial brings you back.
+    @ObservationIgnored private(set) var blink: Double = 0
+    @ObservationIgnored private var blinkTime: Double?
     @ObservationIgnored private var mapDone = false
     /// Seconds since the dots were given (for the ring of new dots around you).
     @ObservationIgnored private(set) var dotGainAge: Double = 9
@@ -165,6 +171,8 @@ final class MazeGame {
             dots.insert(k); dotsLeft -= 1
             Haptics.tap(.rigid, intensity: 0.6)
             coach.did(.dropDot)
+            // The next step is to pick this dot up: stay near it.
+            if coach.current?.waitFor == .pickDot { anchor = tile; awayMoves = 0 }
         } else {
             show("No dots left")
             Haptics.notify(.warning)
@@ -175,7 +183,7 @@ final class MazeGame {
     // MARK: Moving
 
     func swipe(_ d: Dir) {
-        guard phase == .playing else { return }
+        guard phase == .playing, blinkTime == nil else { return }
         if d == .left { coach.did(.swipeLeft) }
         if d == .right { coach.did(.swipeRight) }
         if target != nil { queued = d; return }
@@ -212,6 +220,22 @@ final class MazeGame {
         moving = nil
         Haptics.tap(.light, intensity: 0.45)
         if t.x == maze.goal.x && t.y == maze.goal.y { cleared(); return }
+        // Tutorial: while it asks you to drop or pick up a dot, you can't wander more than two
+        // slides away; the screen fades and you're back where you were.
+        if let w = coach.current?.waitFor, w == .dropDot || w == .pickDot {
+            if let a = anchor {
+                if a.x != t.x || a.y != t.y {
+                    awayMoves += 1
+                    if awayMoves >= 2 { queued = nil; blinkTime = 0; return }
+                } else {
+                    awayMoves = 0
+                }
+            } else {
+                anchor = t; awayMoves = 0
+            }
+        } else {
+            anchor = nil
+        }
         if let q = queued { queued = nil; go(q) }
     }
 
@@ -295,6 +319,18 @@ final class MazeGame {
         map += (mapTarget - map) * min(1, dt * 9)
         if abs(map - mapTarget) < 0.002 { map = mapTarget }
         if mapDone && map < 0.02 { mapDone = false; coach.did(.hold) }
+        if let start = blinkTime {
+            // Fade out, come back to the spot while it's dark, fade in.
+            let b = start + dt
+            if start < 0.32 && b >= 0.32, let a = anchor {
+                tile = a
+                pos = center(a)
+                target = nil; moving = nil; queued = nil
+                awayMoves = 0
+            }
+            blink = b < 0.32 ? b / 0.32 : max(0, 1 - (b - 0.32) / 0.4)
+            if b > 0.72 { blinkTime = nil; blink = 0 } else { blinkTime = b }
+        }
         dotGainAge += dt
 
         relight()
@@ -304,8 +340,16 @@ final class MazeGame {
     private func relight() {
         range = baseRange * (1 + 0.025 * sin(totalTime * 1.7))
         var l: [Int: Double] = [:]
-        light = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: range, rays: 360, lit: &l)
-        Lighting.fillCorners(maze, lit: &l)
+        var floors = Set<Int>()
+        light = Lighting.cast(maze, from: pos, angle: 0, halfAngle: .pi, range: range, rays: 360, lit: &l, floors: &floors)
+        Lighting.fillCorners(maze, lit: &l, floors: floors)
+        // How bright each lit wall is depends only on how far it is from you, so it stays steady
+        // while the light breathes and the rays sweep; only walls the light actually reaches show.
+        for k in l.keys {
+            let x = Double(k % 20_000 - 16) + 0.5, y = Double(k / 20_000 - 16) + 0.5
+            let d = max(0, hypot(x - Double(pos.x), y - Double(pos.y)) - 0.5)
+            l[k] = max(0.04, 1 - d / baseRange)
+        }
         lit = l
         seen.formUnion(l.keys)
     }

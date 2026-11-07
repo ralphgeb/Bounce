@@ -95,11 +95,20 @@ struct GameView: View {
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Pause")
-                Text(game.chain > 1 ? "×\(game.chain)" : " ")
-                    .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(colors.accent)
-                    .scaleEffect(game.chain > 1 ? 1 : 0.6)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: game.chain)
+                // One multiplier per ball that's on a run, side by side.
+                HStack(spacing: 10) {
+                    if game.chains.isEmpty {
+                        Text(" ").font(.system(size: 22, weight: .bold, design: .rounded))
+                    }
+                    ForEach(Array(game.chains.enumerated()), id: \.offset) { _, c in
+                        Text("×\(c)")
+                            .font(.system(size: game.chains.count > 2 ? 17 : 22, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(colors.accent)
+                            .contentTransition(.numericText())
+                            .transition(.scale(scale: 0.5).combined(with: .opacity))
+                    }
+                }
+                .animation(.spring(response: 0.25, dampingFraction: 0.55), value: game.chains)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {

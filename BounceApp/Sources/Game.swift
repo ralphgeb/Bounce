@@ -26,6 +26,9 @@ struct Ball {
     var r: CGFloat = 6
     var stuck = false
     var trail: [CGPoint] = []
+    /// Each ball keeps its own score multiplier and run of breaks since it last touched the paddle.
+    var chain = 1
+    var run = 0
 }
 
 struct Particle {
@@ -46,7 +49,10 @@ final class Game {
     private(set) var phase: Phase = .ready
     private(set) var score = 0
     private(set) var lives = 3
-    private(set) var chain = 1
+    /// The multipliers above ×1, one per ball in play (shown side by side at the top).
+    private(set) var chains: [Int] = []
+    /// The best multiplier in play (for shots from the paddle).
+    var chain: Int { balls.map(\.chain).max() ?? 1 }
     private(set) var elapsed: Double = 0
     private(set) var frame = 0
     private(set) var freshLife = false
@@ -82,7 +88,6 @@ final class Game {
     let side: CGFloat = 18
     @ObservationIgnored private var cell: CGFloat = 30
     @ObservationIgnored private var nextRowY: CGFloat = 0
-    @ObservationIgnored private var run = 0
     @ObservationIgnored private var link: CADisplayLink?
     @ObservationIgnored private var lastTime: CFTimeInterval = 0
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -141,7 +146,7 @@ final class Game {
     }
 
     private func reset() {
-        elapsed = 0; score = 0; lives = 3; run = 0; freshLife = false; newBest = false
+        elapsed = 0; score = 0; lives = 3; freshLife = false; newBest = false; chains = []
         particles = []; flash = 0; bullets = []; shootLeft = 0; sweeps = []
         paddleX = size.width / 2
         dragFrom = nil
@@ -154,8 +159,7 @@ final class Game {
 
     private func serve() {
         balls = [Ball(p: CGPoint(x: paddleX, y: paddleY - 13), v: .zero, stuck: true)]
-        chain = 1
-        run = 0
+        chains = []
     }
 
     /// The first tap sends the ball off the paddle.
@@ -334,7 +338,7 @@ final class Game {
             let pt = bullets[k]
             if let i = blocks.lastIndex(where: { $0.rect.insetBy(dx: -1, dy: 0).contains(pt) }) {
                 bullets.remove(at: k)
-                hit(i, ball: nil)
+                shot(i)
             } else if pt.y < top - 30 {
                 bullets.remove(at: k)
             }
@@ -368,8 +372,9 @@ final class Game {
                     let sp = max(baseSpeed, Double(hypot(ball.v.dx, ball.v.dy)))
                     ball.v = CGVector(dx: cos(ang) * sp, dy: sin(ang) * sp)
                     ball.p.y = paddleY - paddleH / 2 - ball.r
-                    chain = 1
-                    run = 0
+                    // Only this ball's multiplier ends; the others keep theirs.
+                    ball.chain = 1
+                    ball.run = 0
                     Haptics.tap(.light, intensity: 0.6)
                 }
 
@@ -387,7 +392,7 @@ final class Game {
                         } else {
                             ball.v.dy *= -1; ball.p.y += ball.v.dy > 0 ? oy : -oy
                         }
-                        hit(i, ball: ball)
+                        hit(i, by: &ball)
                         break
                     }
                     i -= 1
@@ -409,35 +414,50 @@ final class Game {
             }
             bi -= 1
         }
+        let now = balls.filter { !$0.stuck && $0.chain > 1 }.map(\.chain)
+        if now != chains { chains = now }
     }
 
-    /// A ball or a shot hits block i. Only balls grow the score multiplier and the run of 20.
-    private func hit(_ i: Int, ball: Ball?) {
+    /// One hit on block i; returns the block if it broke.
+    private func damage(_ i: Int) -> Block? {
         blocks[i].hp -= 1
         blocks[i].hit = 1
         guard blocks[i].hp <= 0 else {
             Haptics.tap(.soft, intensity: 0.4)
-            return
+            return nil
         }
         let b = blocks.remove(at: i)
         burst(b, count: 10)
-        score += b.max * chain
         Haptics.tap(.rigid, intensity: 0.5)
-        if ball != nil {
-            chain = min(chain + 1, 9)
-            run += 1
-            // Twenty in a row without the paddle: an extra life (at most 5).
-            if run % 20 == 0 {
-                if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
-                else { score += 50; show("+50") }
-                Haptics.notify(.success)
-            }
+        return b
+    }
+
+    /// A ball breaks blocks with its own multiplier, which then grows; twenty in a row earns a life.
+    private func hit(_ i: Int, by ball: inout Ball) {
+        guard let b = damage(i) else { return }
+        let m = ball.chain
+        score += b.max * m
+        ball.chain = min(ball.chain + 1, 9)
+        ball.run += 1
+        // Twenty in a row without the paddle: an extra life (at most 5).
+        if ball.run % 20 == 0 {
+            if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
+            else { score += 50; show("+50") }
+            Haptics.notify(.success)
         }
-        trigger(b, ball: ball)
+        trigger(b, ball: ball, mult: m)
+    }
+
+    /// A shot from the paddle: scores with the best multiplier in play but doesn't grow it.
+    private func shot(_ i: Int) {
+        guard let b = damage(i) else { return }
+        let m = chain
+        score += b.max * m
+        trigger(b, ball: nil, mult: m)
     }
 
     /// What a special square does when it breaks. Specials caught in a clear go off too.
-    private func trigger(_ first: Block, ball: Ball?) {
+    private func trigger(_ first: Block, ball: Ball?, mult: Int) {
         var queue = [first]
         while let b = queue.popLast() {
             var cleared: [Block] = []
@@ -468,7 +488,7 @@ final class Game {
                 Haptics.notify(.success)
             }
             for c in cleared {
-                score += c.max * chain
+                score += c.max * mult
                 burst(c, count: cleared.count > 20 ? 3 : 6)
                 if c.kind != .plain { queue.append(c) }
             }
@@ -500,7 +520,8 @@ final class Game {
         let sp = max(Double(hypot(src.v.dx, src.v.dy)), baseSpeed)
         let base = atan2(Double(src.v.dy), Double(src.v.dx))
         for d in [-0.45, 0.45] where balls.count < 6 {
-            balls.append(Ball(p: src.p, v: CGVector(dx: cos(base + d) * sp, dy: sin(base + d) * sp)))
+            // The new balls carry on with the same multiplier.
+            balls.append(Ball(p: src.p, v: CGVector(dx: cos(base + d) * sp, dy: sin(base + d) * sp), chain: src.chain, run: src.run))
         }
     }
 }

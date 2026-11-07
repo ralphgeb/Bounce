@@ -238,14 +238,24 @@ struct SwitchView: View {
             }
         }
 
-        // Tutorial: the squares about to clear, outlined in the accent and pulsing, before they go.
-        if !game.highlight.isEmpty {
-            let pulse = 0.5 + 0.5 * sin(game.clock * 9)
-            for c in game.highlight {
-                let r = CGRect(x: L.origin.x + CGFloat(c % game.cols) * C, y: L.origin.y + CGFloat(c / game.cols) * C, width: C, height: C)
-                ctx.fill(Path(r.insetBy(dx: gap / 2, dy: gap / 2)), with: .color(colors.accent.opacity(0.18 + 0.22 * pulse)))
-                ctx.stroke(Path(r.insetBy(dx: 1, dy: 1)), with: .color(colors.accent), lineWidth: 2)
+        // Tutorial: when a power goes off, what it reaches glows before it goes: the row, the column,
+        // the nine around the circle, or every square of the diamond's colour.
+        if !game.regions.isEmpty {
+            let pulse = 0.5 + 0.5 * sin(game.clock * 7)
+            var area = Path()
+            for r in game.regions {
+                area.addRect(CGRect(x: L.origin.x + CGFloat(r.x0) * C, y: L.origin.y + CGFloat(r.y0) * C,
+                                    width: CGFloat(r.x1 - r.x0 + 1) * C, height: CGFloat(r.y1 - r.y0 + 1) * C)
+                    .insetBy(dx: -1, dy: -1))
             }
+            // A soft light over the squares, then a glowing outline around the area.
+            ctx.fill(area, with: .color(Color.white.opacity(0.16 + 0.14 * pulse)))
+            ctx.drawLayer { l in
+                l.addFilter(.shadow(color: colors.accent.opacity(0.95), radius: 10 + 6 * pulse))
+                l.addFilter(.shadow(color: colors.accent.opacity(0.6), radius: 3))
+                l.stroke(area, with: .color(colors.accent), lineWidth: 2.5)
+            }
+            ctx.stroke(area, with: .color(Color.white.opacity(0.7 * pulse)), lineWidth: 1)
         }
 
         // Tutorial: outline the two squares to swap, and a finger showing the swipe.

@@ -268,10 +268,14 @@ final class SwitchGame {
         var sweeps: [(index: Int, across: Bool, life: Double)]
         var blasts: [(x: Int, y: Int, life: Double)]
         var powered: Bool
+        /// The areas a power clears, in cells (for the tutorial's highlight).
+        var regions: [(x0: Int, y0: Int, x1: Int, y1: Int)]
     }
 
     /// Tutorial: the squares about to clear, highlighted.
     @ObservationIgnored private(set) var highlight = Set<Int>()
+    @ObservationIgnored private(set) var regions: [(x0: Int, y0: Int, x1: Int, y1: Int)] = []
+    @ObservationIgnored private var slowClear = false
 
     private func runs(_ shadeAt: (Int) -> Int?) -> [Run] {
         var out: [Run] = []
@@ -387,6 +391,7 @@ final class SwitchGame {
         var sound = false
         var newSweeps: [(index: Int, across: Bool, life: Double)] = []
         var newBlasts: [(x: Int, y: Int, life: Double)] = []
+        var newRegions: [(x0: Int, y0: Int, x1: Int, y1: Int)] = []
         while let c = queue.popFirst() {
             guard !done.contains(c), let g = grid[c], let p = g.power else { continue }
             done.insert(c)
@@ -396,17 +401,21 @@ final class SwitchGame {
             case .row:
                 reach = (0..<cols).map { idx($0, cy) }
                 newSweeps.append((cy, true, 1))
+                newRegions.append((0, cy, cols - 1, cy))
             case .column:
                 reach = (0..<rows).map { idx(cx, $0) }
                 newSweeps.append((cx, false, 1))
+                newRegions.append((cx, 0, cx, rows - 1))
             case .bomb:
                 for y in max(0, cy - 1)...min(rows - 1, cy + 1) {
                     for x in max(0, cx - 1)...min(cols - 1, cx + 1) { reach.append(idx(x, y)) }
                 }
                 newBlasts.append((cx, cy, 1))
+                newRegions.append((max(0, cx - 1), max(0, cy - 1), min(cols - 1, cx + 1), min(rows - 1, cy + 1)))
             case .shade:
                 reach = grid.indices.filter { grid[$0]?.shade == g.shade }
                 newBlasts.append((cx, cy, 1))
+                for r in reach { newRegions.append((r % cols, r / cols, r % cols, r / cols)) }
             }
             sound = true
             for r in reach where !clear.contains(r) && !make.contains(where: { $0.cell == r }) {
@@ -415,11 +424,13 @@ final class SwitchGame {
             }
         }
 
-        let outcome = Outcome(clear: clear, make: make, sweeps: newSweeps, blasts: newBlasts, powered: sound)
-        if tutorial != nil {
-            // Show what's about to go before it goes: longer when a power is going off.
+        let outcome = Outcome(clear: clear, make: make, sweeps: newSweeps, blasts: newBlasts, powered: sound, regions: newRegions)
+        if tutorial != nil && sound {
+            // Tutorial: when a power goes off, show what it reaches before it goes, slowly.
             highlight = clear
-            step = .showing(sound ? 1.4 : 0.8, outcome)
+            regions = newRegions
+            slowClear = true
+            step = .showing(1.5, outcome)
             Haptics.tap(.light, intensity: 0.6)
             return
         }
@@ -429,6 +440,7 @@ final class SwitchGame {
     private func apply(_ o: Outcome) {
         let clear = o.clear, make = o.make, sound = o.powered
         highlight = []
+        regions = []
         sweeps.append(contentsOf: o.sweeps)
         blasts.append(contentsOf: o.blasts)
         score += clear.count * 10 * combo
@@ -448,7 +460,7 @@ final class SwitchGame {
         }
         if sound { Haptics.tap(.heavy) } else { Haptics.tap(.rigid, intensity: 0.6) }
         if combo >= 2 { show("×\(combo)") }
-        step = .clearing(tutorial != nil ? 0.7 : 0.2)
+        step = .clearing(slowClear ? 0.8 : tutorial != nil ? 0.35 : 0.2)
     }
 
     /// Everything falls into the gaps; new pieces drop in from the top.
@@ -541,7 +553,7 @@ final class SwitchGame {
             grid[i] = g
         }
         for i in dying.indices.reversed() {
-            dying[i].fade -= dt * (tutorial != nil ? 1.8 : 5)
+            dying[i].fade -= dt * (slowClear ? 1.6 : 5)
             if dying[i].fade <= 0 { dying.remove(at: i) }
         }
         for i in particles.indices.reversed() {
@@ -576,6 +588,7 @@ final class SwitchGame {
             } else if tutorial != nil {
                 // In the tutorial nothing falls in afterwards, so only your lines ever clear.
                 step = .idle
+                slowClear = false
                 if awaiting { awaiting = false; stageDone() }
             } else {
                 collapse()

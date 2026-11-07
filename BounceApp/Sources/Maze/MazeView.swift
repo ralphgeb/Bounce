@@ -30,6 +30,7 @@ struct MazeView: View {
                 scene.camera = camera
                 scene.dotGain = game.dotGain
                 scene.dotGainAge = game.dotGainAge
+                scene.blink = game.blink
                 MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
             }
             .ignoresSafeArea()

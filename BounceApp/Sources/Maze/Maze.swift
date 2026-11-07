@@ -130,7 +130,7 @@ enum Lighting {
     /// Rays slip past the corner where two lit walls meet, leaving that corner square dark.
     /// A wall with a lit wall beside it, a lit wall above or below it, and floor in the corner
     /// between those two gets lit from them.
-    static func fillCorners(_ maze: Maze, lit: inout [Int: Double]) {
+    static func fillCorners(_ maze: Maze, lit: inout [Int: Double], floors: Set<Int>) {
         var candidates = Set<Int>()
         for key in lit.keys {
             let x = key % 20_000 - 16, y = key / 20_000 - 16
@@ -143,18 +143,20 @@ enum Lighting {
         for k in candidates {
             let x = k % 20_000 - 16, y = k / 20_000 - 16
             for (sx, sy) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
+                // The floor in the corner must itself be in the light, so walls in shadow stay dark.
                 guard let a = lit[Maze.key(x + sx, y)], let b = lit[Maze.key(x, y + sy)],
-                      !maze.isWall(x + sx, y + sy) else { continue }
+                      !maze.isWall(x + sx, y + sy), floors.contains(Maze.key(x + sx, y + sy)) else { continue }
                 add[k] = max(add[k] ?? 0, min(a, b) * 0.92)
             }
         }
         for (k, v) in add { lit[k] = v }
     }
 
-    /// Casts a fan of rays (or a full circle when halfAngle ≥ π). Returns the lit area's outline,
-    /// in tile units, and raises the brightness of every wall face a ray lands on (0...1, by distance).
+    /// Casts a fan of rays (or a full circle when halfAngle ≥ π). Each ray stops at the first wall it
+    /// meets. Returns the lit floor's outline, in tile units, marks the first wall each ray lands on,
+    /// and collects the floor tiles the light crosses.
     static func cast(_ maze: Maze, from o: CGPoint, angle: Double, halfAngle: Double, range: Double,
-                     rays: Int, lit: inout [Int: Double]) -> [CGPoint] {
+                     rays: Int, lit: inout [Int: Double], floors: inout Set<Int>) -> [CGPoint] {
         let full = halfAngle >= .pi
         var outline: [CGPoint] = full ? [] : [o]
         let step = 0.045
@@ -164,7 +166,6 @@ enum Lighting {
                          : angle - halfAngle + 2 * halfAngle * Double(k) / Double(rays)
             let dx = cos(a), dy = sin(a)
             var t = 0.0
-            var hit = Int.min
             var end = CGPoint(x: o.x + dx * range, y: o.y + dy * range)
             var last = o
             while t < range {
@@ -172,17 +173,14 @@ enum Lighting {
                 let p = CGPoint(x: o.x + dx * t, y: o.y + dy * t)
                 let tx = Int(floor(p.x)), ty = Int(floor(p.y))
                 if maze.isWall(tx, ty) {
+                    // The light stops at the first wall: that wall lights up, nothing behind it does.
                     let id = Maze.key(tx, ty)
-                    if hit == Int.min {
-                        hit = id
-                        let b = max(0, 1 - t / range)
-                        if b > (lit[id] ?? 0) { lit[id] = b }
-                    } else if id != hit {
-                        end = last; break
-                    }
-                } else if hit != Int.min {
-                    end = last; break
+                    let b = max(0, 1 - t / range)
+                    if b > (lit[id] ?? 0) { lit[id] = b }
+                    end = last
+                    break
                 }
+                floors.insert(Maze.key(tx, ty))
                 last = p
                 if t >= range { end = p }
             }
