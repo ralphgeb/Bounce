@@ -6,10 +6,12 @@ Safe to run again: anything that already exists is left as it is.
   - a one-time (non-consumable) in-app purchase com.ralphgeb.bounce.unlock on the app com.ralphgeb.bounce
   - its name and description in English (US and UK)
   - on sale everywhere, at £1.99 in the UK and Apple's equivalent elsewhere ($1.99 in the US)
+  - the review screenshot (docs/unlock-review.png)
 
 Apple also needs the Paid Applications Agreement signed (App Store Connect > Business) before
 any purchase works, even in the sandbox; this script can't do that part.
 """
+import hashlib
 import os
 import sys
 import time
@@ -119,6 +121,28 @@ def main() -> int:
                                             "inAppPurchasePricePoint": rel("inAppPurchasePricePoints", pp)}}]},
             ok_conflict=True)
         print(f"Price set: {PRICE} in {BASE}, equivalents elsewhere")
+
+    # The screenshot App Review asks for (the unlock sheet), so the purchase isn't missing anything.
+    r = S.get(f"{API}/v2/inAppPurchases/{iap}/appStoreReviewScreenshot", timeout=60)
+    if r.status_code != 200 or not r.json().get("data"):
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "unlock-review.png")
+        data = open(path, "rb").read()
+        shot = post("/v1/inAppPurchaseAppStoreReviewScreenshots", {"data": {
+            "type": "inAppPurchaseAppStoreReviewScreenshots",
+            "attributes": {"fileName": "unlock-review.png", "fileSize": len(data)},
+            "relationships": {"inAppPurchaseV2": rel("inAppPurchases", iap)}}})
+        for op in shot["attributes"]["uploadOperations"]:
+            headers = {h["name"]: h["value"] for h in op.get("requestHeaders", [])}
+            part = data[op["offset"]:op["offset"] + op["length"]]
+            u = requests.request(op["method"], op["url"], headers=headers, data=part, timeout=120)
+            if u.status_code not in (200, 201, 204):
+                raise SystemExit(f"::error::Screenshot upload answered {u.status_code}")
+        done = S.patch(f"{API}/v1/inAppPurchaseAppStoreReviewScreenshots/{shot['id']}", json={"data": {
+            "type": "inAppPurchaseAppStoreReviewScreenshots", "id": shot["id"],
+            "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}}, timeout=60)
+        if done.status_code != 200:
+            raise SystemExit(f"::error::Screenshot commit answered {done.status_code}: {done.text[:400]}")
+        print("Uploaded the review screenshot")
 
     state = get(f"/v2/inAppPurchases/{iap}")["data"]["attributes"].get("state")
     print(f"::notice::Unlock all games ({PRODUCT_ID}) is set up; its state is {state}. "

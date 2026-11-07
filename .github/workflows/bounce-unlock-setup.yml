@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/scripts/setup_bounce_unlock.py"
       - ".github/workflows/bounce-unlock-setup.yml"
+      - "docs/unlock-review.png"
 
 jobs:
   setup:
