@@ -100,8 +100,11 @@ def main() -> int:
         print(f"On sale in {len(territories)} territories")
 
     # Price: £1.99 in the UK; Apple sets the equivalent everywhere else
-    r = S.get(f"{API}/v2/inAppPurchases/{iap}/iapPriceSchedule", timeout=60)
-    if r.status_code != 200 or not r.json().get("data"):
+    # (Apple answers with an empty schedule even before a price is set, so look at its prices.)
+    r = S.get(f"{API}/v2/inAppPurchases/{iap}/iapPriceSchedule", params={"include": "manualPrices"}, timeout=60)
+    has_price = r.status_code == 200 and bool(r.json().get("data", {}).get("relationships", {})
+                                               .get("manualPrices", {}).get("data"))
+    if not has_price:
         points = get(f"/v2/inAppPurchases/{iap}/pricePoints", **{"filter[territory]": BASE, "limit": 200})["data"]
         pp = next((p["id"] for p in points if p["attributes"].get("customerPrice") == PRICE), None)
         if not pp:
