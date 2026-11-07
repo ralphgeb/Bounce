@@ -1,45 +1,40 @@
 # Bounce
 
 Minimal games for iPhone, in the same style as Halo and Scout: the same looks, type and quiet interface.
-The app opens on a menu of five games, one section each, split by thin lines:
+The app opens on a menu of four games, one section each, split by thin lines:
 
 - **Bounce**: a block breaker with an endless wall.
-- **Hide**: Bounce in the dark. The wall stays still and the ball is your only light.
 - **Maze**: find your way through 20 ever bigger mazes in pitch black, by the light you give off.
 - **Switch**: a match-three of shades, with the same special shapes as Bounce.
-- **Hue**: put a shuffled colour gradient back in order. 10 levels.
+- **Hue**: put a shuffled colour gradient back in order. 50 levels.
 
 On the menu, drag in a game's section and its logo stretches after your finger and springs back (the others barely move); only a tap, without dragging, opens the game. Each landing page has the settings button at the top right.
 
-**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, one thing at a time (it waits for you to do each step; rule cards move on with a tap; Skip is always there). Settings › Show tutorials again brings them back.
-
-## Hide
-
-- Pitch black in dark mode (pitch white in light). Each ball is a light: rays stop at the squares, so they throw shadows, and a square shows only as much as the light reaching it. Your paddle is always visible.
-- The wall doesn't move. Clear every square and the next, bigger board comes (5 rows, then one more each level up to 11, with tougher squares).
-- The same powers as Bounce, a little more often, plus the **flare** (an accent ring) that lights up every square for 3 seconds. Three lives; 20 in a row earns one.
+**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small centred panel (at the top, or low for Bounce) and leave the game playable; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Switch's and Hue's tutorials are played on the board: the squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again brings them back.
 
 ## Maze
 
 - Pitch black in dark mode, pitch white in light mode. You are the accent square, and bright light comes out of you all around (about 5 tiles, gently breathing). Walls catch the light, brighter the closer they are, corners included, and throw shadows behind them; that is all you see. The view is zoomed in, about seven tiles across.
 - **Swipe** up, down, left or right to slide until a wall, a turning or the way out. Swipe again while sliding and that move waits for the next stop.
 - **Dots**: tap to drop a dot where you stand; tap on it again to pick it up. You get 10 on level 1 and 3 more each level on top of what you have left (a ring of new dots gathers into you, and a "+3" pops up by the count). Dots stay where you left them, glowing softly, brighter in your light.
-- **The map**: hold still for a moment, or pinch in, and the view zooms out over the whole level showing the walls you've lit, your dots and a ring where you are (not the way out). Let go and it zooms back.
+- **The map**: hold still for a moment, or pinch in, and the view zooms out over the whole level. It stays dark: you see only what your light reaches, your dots, and a ring where you are, so you can tell where your dots are compared to you. Let go and it zooms back.
 - **The way out** is an accent circle with its own glow.
 - **20 levels**, each bigger and harder: level 1 is 21 x 29 tiles with the way out about 160 steps away and 17 dead ends; level 20 is 97 x 143 tiles, about 650 steps and 420 dead ends. Later levels branch more, with a few more loops. Every player gets the same mazes. [All 20 levels](docs/maze-levels.png) (drawn by `BounceApp/tools/maze_levels.py`, which uses the same generator and random numbers as the app). Records: the deepest level, the fastest time for each, and whether you've made it out of level 20.
 - Settings › Maze › **Show the walls** draws every wall faintly, for trying things out.
 
 ## Switch
 
-- A 7 x 8 board of squares in five shades: the main colour at 90%, 65%, 40% and 15%, and the accent. **Swipe** a square to swap it with its neighbour; three or more of a shade in a line clear, the rest fall, and new squares drop in. Chains score x2, x3…
-- **Powers**, in the shade of the square they're on: **four across** makes a row clearer (cut corners, line across), **four down** a column clearer (line down), **five in a line** a circle that clears the squares around it, and a **T or an L** a diamond (with a shine sweeping across it) that clears every square of its shade. A diamond also turns up after every 120 squares cleared, and now and then a line clearer or circle turns up on its own.
+- A 7 x 8 board in five colours. Choose before you play: **Mono** (the main colour at 90%, 65%, 40% and 15%, and the accent) or **Colour** (the accent and four more picked around the colour wheel from it, at different lightnesses so they're easy to tell apart). **Swipe** a square to swap it with its neighbour; three or more in a line clear, the rest fall, and new squares drop in. Chains score x2, x3…
+- **Powers** only come from your lines: **four across** makes a row clearer (cut corners, line across), **four down** a column clearer (line down), **five in a line** a circle that clears the squares around it, and a **T or an L** a diamond, with a soft diagonal shine fading in and out, that clears every square of its colour. One diamond also turns up after every 120 squares cleared.
 - **No limit on moves**; end the game from pause to keep your score. **Hint** shows one move that works.
+- The tutorial is seven moves on real boards: three in a row, four, setting off the line clearer, five, the circle, a T, the diamond.
 
 ## Hue
 
 - A 7 x 8 board blending smoothly between four corner colours (light, dark, your accent and a second accent from another look), mixed in OKLab so the steps look even. You see it finished for a moment ("Remember it"), then it shuffles.
 - **Drag** a square onto another to swap them, or tap one then the other. Squares with a dot are fixed. Solve it and a wave runs across the board.
-- **10 levels**, easy to hard: level 1 has its whole border fixed and 12 squares out of place; by level 10 only the four corners are fixed, every other square is shuffled, and the colours sit close together. Every player gets the same shuffle for each level. Pick any solved level (or the next one) from the row of squares on the landing page; the fewest swaps for each is kept.
+- **50 levels**, easy to very hard ([all of them](docs/hue-levels.png)): level 1 has its whole border fixed and 8 squares out of place; then fewer squares are fixed (alternate border squares, then corners and edge middles, then a few anchors, then from level 29 only the four corners) and everything is shuffled, while the colours draw steadily closer together until the steps on level 50 are very subtle. Some levels use one colour (white, the accent, black), others two accents. Every player gets the same shuffle for each level. Pick any solved level (or the next one) from the 10 x 5 grid on the landing page; the fewest swaps for each is kept.
+- The logo's three squares are three shades of your accent.
 
 ## Bounce
 
@@ -73,7 +68,7 @@ BounceApp/
     Maze/              Maze: the maze and the light, the game, drawing, its screens
     Switch/            Switch: the board, the rules, drawing, its screens
     Hue/               Hue: the levels and colour maths, the game, its screens
-    Common/Coach.swift the first-time tutorials
+    Common/Coach.swift the first-time tutorials: steps, the panel and cards, finger hints, pictures
     Game.swift         the board, physics, lives, chains and the display link
     GameView.swift     the canvas, the score, lives and pause
     HomeView.swift     the landing page

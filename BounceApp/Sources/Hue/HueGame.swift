@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Hue: a board of colours blending from corner to corner, shuffled. Swap squares until every
-/// colour is back in its place. Squares with a dot are fixed. Ten levels, easy to hard.
+/// colour is back in its place. Squares with a dot are fixed. Fifty levels, easy to very hard.
 @MainActor
 @Observable
 final class HueGame {
@@ -46,6 +46,16 @@ final class HueGame {
 
     func isFixed(_ place: Int) -> Bool { HueLevels.isFixed(level, place) }
 
+    /// Tutorial: a square that's out of place, and the place it belongs (swapping fixes it).
+    var guide: (from: Int, to: Int)? {
+        guard coach.current?.waitFor == .swap, phase == .playing else { return nil }
+        for p in order.indices where !isRight(p) {
+            let home = order[p]
+            if !isFixed(home) && home != p { return (p, home) }
+        }
+        return nil
+    }
+
     // MARK: Phases
 
     /// Show the finished board for a moment, then shuffle it.
@@ -80,9 +90,11 @@ final class HueGame {
         phase = .playing
         Haptics.tap(.medium)
         coach.begin("hue", steps: [
-            .init(text: "The colours blend smoothly from corner to corner. Squares with a dot are already in place.",
+            .init(text: "The colours were in order a moment ago.\nThey blend smoothly from corner to corner.\nSquares with a dot never move.",
                   waitFor: .tapToContinue, picture: .hueFixed),
-            .init(text: "Drag a square onto another to swap them. Put every colour back.", waitFor: .swap, gesture: .swapRight),
+            .init(text: "Drag the outlined square\nonto the other one to swap them.", waitFor: .swap),
+            .init(text: "Or tap one square, then another.\nTry it.", waitFor: .swap),
+            .init(text: "Keep swapping until every colour\nis back in its place.", waitFor: .tapToContinue),
         ])
     }
 
@@ -127,7 +139,7 @@ final class HueGame {
     }
 
     /// The colour at this place is the one that belongs there (two squares can share a colour).
-    private func isRight(_ place: Int) -> Bool {
+    func isRight(_ place: Int) -> Bool {
         let a = colors[order[place]], b = colors[place]
         return abs(a.r - b.r) + abs(a.g - b.g) + abs(a.b - b.b) < 0.006
     }

@@ -20,7 +20,8 @@ enum MazeRenderer {
         var showPlayer = true
         var revealWalls = false
         var lightStrength: Double = 1
-        /// The map: 0 = normal, 1 = zoomed out over the whole maze, showing the walls you've lit.
+        /// The map: 0 = normal, 1 = zoomed out over the whole maze. Still dark: only your light
+        /// and your dots show, so you can see where the dots are compared to you.
         var map: Double = 0
         var seen: Set<Int> = []
         /// Where the view is centred (the player, or the middle of the maze on the map).
@@ -53,17 +54,6 @@ enum MazeRenderer {
             var all = Path()
             for y in y0...y1 { for x in x0...x1 where s.maze.isWall(x, y) { all.addRect(tileRect(x, y)) } }
             ctx.fill(all, with: .color(c.ink.opacity(0.09)))
-        }
-
-        // The map: every wall you've lit on this level.
-        if s.map > 0.01 && !s.seen.isEmpty {
-            var known = Path()
-            for key in s.seen {
-                let x = key % 20_000 - 16, y = key / 20_000 - 16
-                guard x >= x0, x <= x1, y >= y0, y <= y1 else { continue }
-                known.addRect(tileRect(x, y))
-            }
-            ctx.fill(known, with: .color(c.ink.opacity(0.4 * s.map)))
         }
 
         // The lit floor: only where the light reaches, fading out with distance.

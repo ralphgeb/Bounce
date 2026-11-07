@@ -91,12 +91,12 @@ final class MazeGame {
         ticker.start()
         show("Level 1")
         coach.begin("maze", steps: [
-            .init(text: "Swipe left to slide that way", waitFor: .swipeLeft, gesture: .swipeLeft),
-            .init(text: "Now swipe right", waitFor: .swipeRight, gesture: .swipeRight),
-            .init(text: "Tap to drop a dot where you stand", waitFor: .dropDot, gesture: .tap),
-            .init(text: "Tap on it again to pick it up, so you don't run out", waitFor: .pickDot, gesture: .tap),
-            .init(text: "Hold anywhere to see the map of where you've been", waitFor: .hold, gesture: .hold),
-            .init(text: "Find the glowing circle to go one level deeper. 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
+            .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft),
+            .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight),
+            .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap),
+            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap),
+            .init(text: "Hold anywhere to zoom out.\nYou'll see your dots and where you are.", waitFor: .hold, gesture: .hold),
+            .init(text: "Find the glowing circle\nto go one level deeper.\nThere are 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
         ])
     }
 

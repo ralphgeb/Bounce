@@ -18,7 +18,6 @@ struct RootView: View {
     @State private var game = Game()
     @State private var maze = MazeGame()
     @State private var switcher = SwitchGame()
-    @State private var hider = Game(hide: true)
     @State private var hue = HueGame()
     @State private var settings = Settings.shared
     @State private var showSettings = false
@@ -30,7 +29,6 @@ struct RootView: View {
         case .bounce: return game.phase == .playing || game.phase == .paused
         case .maze: return maze.phase != .ready
         case .switcher: return switcher.phase != .ready
-        case .hide: return hider.phase == .playing || hider.phase == .paused
         case .hue: return hue.phase != .ready
         case .menu: return false
         }
@@ -38,11 +36,11 @@ struct RootView: View {
 
     var body: some View {
         let c = settings.colors(scheme)
-        // Maze and Hide are pitch black in dark mode and pitch white in light mode.
+        // Maze is pitch black in dark mode and pitch white in light mode.
         let mazeColors = Colors(ink: c.ink, background: scheme == .dark ? .black : .white, accent: c.accent)
         GeometryReader { geo in
             ZStack {
-                (screen == .maze || screen == .hide ? mazeColors.background : c.background).ignoresSafeArea()
+                (screen == .maze ? mazeColors.background : c.background).ignoresSafeArea()
 
                 switch screen {
                 case .menu:
@@ -63,15 +61,6 @@ struct RootView: View {
                             MazeHome(game: maze, colors: mazeColors, onBack: { screen = .menu }, onSettings: { showSettings = true })
                         } else {
                             MazeView(game: maze, colors: mazeColors)
-                        }
-                    }
-                    .transition(.opacity)
-                case .hide:
-                    Group {
-                        if hider.phase == .playing || hider.phase == .paused {
-                            GameView(game: hider, colors: mazeColors, safeTop: geo.safeAreaInsets.top, safeBottom: geo.safeAreaInsets.bottom)
-                        } else {
-                            HomeView(game: hider, colors: mazeColors, onBack: { screen = .menu }, onSettings: { showSettings = true })
                         }
                     }
                     .transition(.opacity)
@@ -102,7 +91,6 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: game.phase)
         .animation(.easeInOut(duration: 0.3), value: maze.phase == .ready)
         .animation(.easeInOut(duration: 0.3), value: switcher.phase == .ready)
-        .animation(.easeInOut(duration: 0.25), value: hider.phase)
         .animation(.easeInOut(duration: 0.3), value: hue.phase == .ready)
         .statusBarHidden(playing)
         .persistentSystemOverlays(playing ? .hidden : .automatic)
@@ -112,7 +100,7 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { game.pause(); maze.pause(); switcher.pause(); hider.pause(); hue.pause() }
+            if phase != .active { game.pause(); maze.pause(); switcher.pause(); hue.pause() }
         }
     }
 
@@ -121,6 +109,5 @@ struct RootView: View {
         let i = geo.safeAreaInsets
         let full = CGSize(width: geo.size.width + i.leading + i.trailing, height: geo.size.height + i.top + i.bottom)
         game.layout(size: full, safeTop: i.top, safeBottom: i.bottom)
-        hider.layout(size: full, safeTop: i.top, safeBottom: i.bottom)
     }
 }

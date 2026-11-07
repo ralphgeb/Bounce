@@ -113,7 +113,7 @@ struct HueView: View {
             if game.number < HueLevels.count {
                 OutlineButton(title: "Next level", colors: colors) { game.next() }
             } else {
-                Text("All ten levels done")
+                Text("All \(HueLevels.count) levels done")
                     .font(.system(size: 13))
                     .foregroundStyle(colors.ink.opacity(0.5))
             }
@@ -183,6 +183,26 @@ struct HueView: View {
             }
         }
 
+        // Tutorial: outline a square and where it belongs, with a finger showing the drag.
+        if let g = game.guide, game.dragging == nil {
+            func cellRect(_ p: Int) -> CGRect {
+                CGRect(x: L.origin.x + CGFloat(p % game.cols) * C, y: L.origin.y + CGFloat(p / game.cols) * C, width: C, height: C)
+            }
+            let a = cellRect(g.from), b = cellRect(g.to)
+            let pulse = 0.55 + 0.45 * sin(game.clock * 5)
+            ctx.stroke(Path(a.insetBy(dx: 1, dy: 1)), with: .color(colors.ink.opacity(0.9 * pulse)), lineWidth: 2)
+            ctx.stroke(Path(b.insetBy(dx: 1, dy: 1)), with: .color(colors.ink.opacity(0.5 * pulse)),
+                       style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+            let k = (game.clock * 0.7).truncatingRemainder(dividingBy: 1)
+            let e = k < 0.7 ? 0.5 - 0.5 * cos(k / 0.7 * .pi) : 1
+            let f = CGPoint(x: a.midX + (b.midX - a.midX) * CGFloat(e), y: a.midY + (b.midY - a.midY) * CGFloat(e))
+            let fade = k < 0.78 ? 1 : max(0, 1 - (k - 0.78) / 0.22)
+            let rr = C * 0.34
+            ctx.fill(Path(ellipseIn: CGRect(x: f.x - rr, y: f.y - rr, width: rr * 2, height: rr * 2)), with: .color(colors.ink.opacity(0.2 * fade)))
+            ctx.stroke(Path(ellipseIn: CGRect(x: f.x - rr, y: f.y - rr, width: rr * 2, height: rr * 2)),
+                       with: .color(colors.ink.opacity(0.75 * fade)), lineWidth: 1.5)
+        }
+
         // The square being dragged, lifted, under the finger.
         if let d = game.dragging, let id = draggedID {
             let s = (C - gap) * 1.18
@@ -199,7 +219,7 @@ struct HueView: View {
     }
 }
 
-/// The Hue landing page: three squares over H U E, the ten levels to pick from, and Start.
+/// The Hue landing page: three shades of the accent over H U E, the fifty levels to pick from, and Start.
 struct HueHome: View {
     let game: HueGame
     let colors: Colors
@@ -212,11 +232,10 @@ struct HueHome: View {
 
     var body: some View {
         let s = Settings.shared
-        let second = s.secondAccent.color
         VStack(spacing: 0) {
             BackBar(ink: colors.ink, settings: onSettings, action: onBack)
             Spacer()
-            ElasticLogo(word: "HUE", fills: [colors.accent, HueColor.mix(colors.accent, second, 0.5), second],
+            ElasticLogo(word: "HUE", fills: HueColor.logo(colors.accent),
                         ink: colors.ink, drag: drag, dropped: dropped)
             VStack(alignment: .leading, spacing: 12) {
                 rule(gradientMark, "Swap squares to put the colours back in order")
@@ -242,14 +261,15 @@ struct HueHome: View {
         }
     }
 
-    /// The ten levels as a row of squares: solved ones filled, the next one open, the rest locked.
+    /// The fifty levels as a grid of squares, ten a row: solved ones filled (light to deep shades
+    /// of the accent), the next one open, the rest locked.
     private var levels: some View {
         let solved = Settings.shared.hueSolved
-        let second = Settings.shared.secondAccent.color
-        return HStack(spacing: 6) {
+        let grid = Array(repeating: GridItem(.fixed(24), spacing: 5), count: 10)
+        return LazyVGrid(columns: grid, spacing: 5) {
             ForEach(1...HueLevels.count, id: \.self) { n in
                 let open = n <= solved + 1
-                let fill = HueColor.mix(colors.accent, second, Double(n - 1) / Double(HueLevels.count - 1))
+                let fill = HueColor.shade(colors.accent, 0.5 - Double(n - 1) / Double(HueLevels.count - 1))
                 Button {
                     guard open else { Haptics.tap(.soft, intensity: 0.3); return }
                     game.chosen = n
@@ -275,7 +295,7 @@ struct HueHome: View {
     private var gradientMark: some View {
         HStack(spacing: 2) {
             ForEach(0..<3, id: \.self) { i in
-                Rectangle().fill(HueColor.mix(colors.accent, Settings.shared.secondAccent.color, Double(i) / 2)).frame(width: 7, height: 7)
+                Rectangle().fill(HueColor.logo(colors.accent)[i]).frame(width: 7, height: 7)
             }
         }
     }
@@ -297,6 +317,6 @@ struct HueHome: View {
     private var result: String {
         let s = Settings.shared
         if let b = s.hueBest[String(game.chosen)] { return "Level \(game.chosen) · best \(b) swaps" }
-        return s.hueSolved >= HueLevels.count ? "All ten solved" : " "
+        return s.hueSolved >= HueLevels.count ? "All \(HueLevels.count) solved" : " "
     }
 }

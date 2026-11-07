@@ -1,5 +1,28 @@
 import SwiftUI
 
+/// Switch's colours: five that go together, built around the theme's accent (Colour), and the logo.
+enum SwitchColors {
+    /// The accent and four more around the colour wheel (in OKLCh), at lightnesses that keep them
+    /// easy to tell apart.
+    static func colourful(_ accent: Color) -> [Color] {
+        let a = HueColor.lab(RGB(accent))
+        let c = max(0.12, min(0.17, hypot(a.a, a.b)))
+        let h = atan2(a.b, a.a)
+        let steps: [(turn: Double, l: Double)] = [(0.2, 0.80), (0.42, 0.62), (0.6, 0.74), (0.8, 0.55)]
+        var out = [accent]
+        for s in steps {
+            let hh = h + s.turn * 2 * .pi
+            out.append(HueColor.rgb(HueColor.Lab(l: s.l, a: c * cos(hh), b: c * sin(hh))).color)
+        }
+        // Order: the accent last, as in Mono (index 4 is the accent there too).
+        return [out[1], out[2], out[3], out[4], out[0]]
+    }
+
+    static func logo(_ colors: Colors) -> [Color] {
+        [colors.ink.opacity(0.65), colors.ink.opacity(0.9), colors.ink.opacity(0.15), colors.accent, colors.ink.opacity(0.4), colors.ink.opacity(0.9)]
+    }
+}
+
 /// Where the board sits on screen.
 struct SwitchLayout {
     let origin: CGPoint
@@ -68,7 +91,7 @@ struct SwitchView: View {
                     hud
                     Spacer()
                     // One move that works, when you're stuck.
-                    Button {
+                    if game.tutorial == nil { Button {
                         game.showHint()
                     } label: {
                         Text("Hint")
@@ -80,7 +103,7 @@ struct SwitchView: View {
                             .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.25), lineWidth: 1))
                             .contentShape(Rectangle())
                     }
-                    .padding(.bottom, 36)
+                    .padding(.bottom, 36) }
                 }
 
                 if let t = game.toast {
@@ -208,6 +231,24 @@ struct SwitchView: View {
             }
         }
 
+        // Tutorial: outline the two squares to swap, and a finger showing the swipe.
+        if let g = game.guide, !game.busy {
+            let fx = g.cell % game.cols, fy = g.cell / game.cols
+            let a = CGRect(x: L.origin.x + CGFloat(fx) * C, y: L.origin.y + CGFloat(fy) * C, width: C, height: C)
+            let b = a.offsetBy(dx: CGFloat(g.dx) * C, dy: CGFloat(g.dy) * C)
+            let pulse = 0.55 + 0.45 * sin(game.clock * 5)
+            ctx.stroke(Path(a.union(b).insetBy(dx: 1, dy: 1)), with: .color(colors.ink.opacity(0.85 * pulse)), lineWidth: 2)
+            let k = (game.clock * 0.9).truncatingRemainder(dividingBy: 1)
+            let e = k < 0.7 ? 0.5 - 0.5 * cos(k / 0.7 * .pi) : 1
+            let f = CGPoint(x: a.midX + (b.midX - a.midX) * CGFloat(e), y: a.midY + (b.midY - a.midY) * CGFloat(e))
+            let fade = k < 0.75 ? 1 : max(0, 1 - (k - 0.75) / 0.25)
+            let rr = C * 0.32
+            ctx.fill(Path(ellipseIn: CGRect(x: f.x - rr, y: f.y - rr, width: rr * 2, height: rr * 2)),
+                     with: .color(colors.ink.opacity(0.18 * fade)))
+            ctx.stroke(Path(ellipseIn: CGRect(x: f.x - rr, y: f.y - rr, width: rr * 2, height: rr * 2)),
+                       with: .color(colors.ink.opacity(0.7 * fade)), lineWidth: 1.5)
+        }
+
         for p in game.particles {
             let x = L.origin.x + CGFloat(p.p.x) * C, y = L.origin.y + CGFloat(p.p.y) * C
             let s = C * 0.12
@@ -216,6 +257,7 @@ struct SwitchView: View {
     }
 
     private func shadeColor(_ s: Int) -> Color {
+        if game.palette == .colour { return SwitchColors.colourful(colors.accent)[min(4, max(0, s))] }
         switch s {
         // Even steps of the main colour, from 90% down to 15%, and the accent.
         case 0: return colors.ink.opacity(0.9)
@@ -255,27 +297,25 @@ struct SwitchView: View {
             p.addLine(to: CGPoint(x: r.minX, y: r.midY))
             p.closeSubpath()
             ctx.fill(p, with: .color(color))
-            // The shine: a bright band sweeping across, then a pause, over and over.
-            let phase = (game.clock * 0.55 + Double(g.id % 5) * 0.13).truncatingRemainder(dividingBy: 1)
-            if phase < 0.45 {
-                let k = CGFloat(phase / 0.45)
-                let bx = r.minX - r.width * 0.4 + (r.width * 1.8) * k
-                var band = Path()
-                band.move(to: CGPoint(x: bx, y: r.minY))
-                band.addLine(to: CGPoint(x: bx + r.width * 0.22, y: r.minY))
-                band.addLine(to: CGPoint(x: bx - r.width * 0.18, y: r.maxY))
-                band.addLine(to: CGPoint(x: bx - r.width * 0.4, y: r.maxY))
-                band.closeSubpath()
-                ctx.drawLayer { l in
-                    l.clip(to: p)
-                    l.fill(band, with: .color(Color.white.opacity(0.55 * alpha)))
-                }
+            // The shine: a soft diagonal band across the diamond, fading in and out.
+            let glow = 0.5 + 0.5 * sin(game.clock * 2.4 + Double(g.id % 7))
+            var band = Path()
+            band.move(to: CGPoint(x: r.minX + r.width * 0.18, y: r.minY + r.height * 0.06))
+            band.addLine(to: CGPoint(x: r.minX + r.width * 0.42, y: r.minY + r.height * 0.06))
+            band.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.42))
+            band.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.18))
+            band.closeSubpath()
+            var band2 = Path()
+            band2.move(to: CGPoint(x: r.minX + r.width * 0.5, y: r.minY + r.height * 0.06))
+            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.58, y: r.minY + r.height * 0.06))
+            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.58))
+            band2.addLine(to: CGPoint(x: r.minX + r.width * 0.06, y: r.minY + r.height * 0.5))
+            band2.closeSubpath()
+            ctx.drawLayer { l in
+                l.clip(to: p)
+                l.fill(band, with: .color(Color.white.opacity((0.15 + 0.45 * glow) * alpha)))
+                l.fill(band2, with: .color(Color.white.opacity((0.08 + 0.3 * glow) * alpha)))
             }
-            // A small sparkle at the top.
-            let tw = 0.5 + 0.5 * sin(game.clock * 4 + Double(g.id))
-            let sp = r.width * 0.09 * CGFloat(tw)
-            ctx.fill(Path(ellipseIn: CGRect(x: r.midX - sp, y: r.minY + r.height * 0.2 - sp, width: sp * 2, height: sp * 2)),
-                     with: .color(Color.white.opacity(0.8 * alpha * tw)))
         }
     }
 }
@@ -296,7 +336,7 @@ struct SwitchHome: View {
             BackBar(ink: colors.ink, settings: onSettings, action: onBack)
             Spacer()
             ElasticLogo(word: "SWITCH",
-                        fills: [colors.ink.opacity(0.65), colors.ink.opacity(0.9), colors.ink.opacity(0.15), colors.accent, colors.ink.opacity(0.4), colors.ink.opacity(0.9)],
+                        fills: SwitchColors.logo(colors),
                         ink: colors.ink, drag: drag, dropped: dropped)
             rules.padding(.top, 34)
             Spacer(minLength: 16)
@@ -306,8 +346,12 @@ struct SwitchHome: View {
                 .frame(minHeight: 20)
             Spacer(minLength: 16)
             Spacer(minLength: 16)
-            OutlineButton(title: game.lastScore == nil ? "Start" : "Again", colors: colors) { game.start() }
-                .padding(.bottom, 64)
+            // Two ways to play: shades of one colour, or five colours from the theme.
+            HStack(spacing: 12) {
+                OutlineButton(title: "Mono", colors: colors, width: 140) { game.start(.mono) }
+                OutlineButton(title: "Colour", colors: colors, width: 140) { game.start(.colour) }
+            }
+            .padding(.bottom, 64)
         }
         .elasticDrag($drag)
         .onAppear {

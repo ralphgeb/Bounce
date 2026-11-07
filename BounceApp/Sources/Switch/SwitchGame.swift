@@ -63,8 +63,16 @@ final class SwitchGame {
     @ObservationIgnored var pressed: Int?
     /// Seconds since the game started, for the diamonds' shine.
     @ObservationIgnored private(set) var clock: Double = 0
-    /// The first-time tutorial.
+    /// The first-time tutorial, played on the board: each step sets up a small pattern and shows
+    /// the one swipe that makes it work.
     let coach = Coach()
+    /// Shades of the main colour and the accent, or five colours from the theme.
+    enum Palette { case mono, colour }
+    private(set) var palette: Palette = .mono
+    /// The tutorial stage being played, and the swipe it's waiting for.
+    private(set) var tutorial: Int?
+    @ObservationIgnored private(set) var guide: (cell: Int, dx: Int, dy: Int)?
+    @ObservationIgnored private var awaiting = false
 
     @ObservationIgnored private var step: Step = .idle
     @ObservationIgnored private var nextID = 0
@@ -82,24 +90,114 @@ final class SwitchGame {
 
     // MARK: Phases
 
-    func start() {
+    func start(_ palette: Palette) {
+        self.palette = palette
         score = 0; moves = 0; combo = 1; newBest = false
         clearedSinceDiamond = 0; diamondDue = false; hint = nil
         dying = []; particles = []; sweeps = []; blasts = []
+        phase = .playing
+        ticker.start()
+        coach.begin("switch", steps: [
+            .init(text: "Swipe up to swap these two.\nThree of a kind in a line clear.", waitFor: .swap),
+            .init(text: "Four in a line\nmakes a line clearer.", waitFor: .swap),
+            .init(text: "Match the line clearer\nto clear its whole row.", waitFor: .swap),
+            .init(text: "Five in a line\nmakes a circle.", waitFor: .swap),
+            .init(text: "Match the circle to clear\nthe squares around it.", waitFor: .swap),
+            .init(text: "A T or an L shape\nmakes a diamond.", waitFor: .swap),
+            .init(text: "Match the diamond: every square\nof its colour clears.", waitFor: .swap),
+            .init(text: "That's all of it.\nMake lines, chain them,\nand go for a high score.\nStuck? Tap Hint.", waitFor: .tapToContinue),
+        ], onFinish: { [weak self] in self?.endTutorial() })
+        if coach.active {
+            setUpStage(0)
+        } else {
+            dropInBoard()
+        }
+    }
+
+    private func dropInBoard() {
+        tutorial = nil; guide = nil; awaiting = false
         fill()
         // Drop the whole board in from above.
         for i in grid.indices { grid[i]?.y -= Double(rows) + 1 }
         step = .falling
-        phase = .playing
-        ticker.start()
-        coach.begin("switch", steps: [
-            .init(text: "Swipe a square to swap it with the one next to it. Three of a shade in a line clear.",
-                  waitFor: .tapToContinue, gesture: .swipeRight),
-            .init(text: "Line up four for a row or column clearer", waitFor: .tapToContinue, picture: .switchFour),
-            .init(text: "Line up five for a circle: it clears the squares around it", waitFor: .tapToContinue, picture: .switchFive),
-            .init(text: "Make a T or an L for a diamond: it clears every square of its shade", waitFor: .tapToContinue, picture: .switchT),
-            .init(text: "Your turn. Swipe to make a line", waitFor: .swap, gesture: .swipeAny),
-        ])
+    }
+
+    private func endTutorial() {
+        guard tutorial != nil else { return }
+        score = 0; moves = 0; combo = 1
+        clearedSinceDiamond = 0; diamondDue = false
+        dying = []; sweeps = []; blasts = []
+        dropInBoard()
+    }
+
+    // MARK: Tutorial
+
+    private struct Stage {
+        var cells: [(x: Int, y: Int, power: Gem.Power?)]
+        var move: (x: Int, y: Int, dx: Int, dy: Int)
+        var sprinkle = false     // a few more of the colour around, for the diamond to clear
+    }
+
+    /// Each stage: squares of one colour (the accent), and the one swipe that completes the pattern.
+    private let stages: [Stage] = [
+        Stage(cells: [(1, 4, nil), (2, 4, nil), (3, 5, nil)], move: (3, 5, 0, -1)),
+        Stage(cells: [(1, 4, nil), (2, 4, nil), (4, 4, nil), (3, 5, nil)], move: (3, 5, 0, -1)),
+        Stage(cells: [(1, 4, nil), (2, 4, .row), (3, 5, nil)], move: (3, 5, 0, -1)),
+        Stage(cells: [(1, 4, nil), (2, 4, nil), (4, 4, nil), (5, 4, nil), (3, 5, nil)], move: (3, 5, 0, -1)),
+        Stage(cells: [(1, 4, nil), (2, 4, .bomb), (3, 5, nil)], move: (3, 5, 0, -1)),
+        Stage(cells: [(1, 3, nil), (3, 3, nil), (2, 4, nil), (2, 5, nil), (2, 2, nil)], move: (2, 2, 0, 1)),
+        Stage(cells: [(1, 4, nil), (2, 4, .shade), (3, 5, nil)], move: (3, 5, 0, -1), sprinkle: true),
+    ]
+
+    private func setUpStage(_ n: Int) {
+        guard n < stages.count else {
+            tutorial = nil; guide = nil
+            return
+        }
+        tutorial = n
+        let st = stages[n]
+        let accent = shades - 1
+        var g: [Gem?] = Array(repeating: nil, count: cols * rows)
+        var special = Set<Int>()
+        for c in st.cells {
+            let i = idx(c.x, c.y)
+            g[i] = newGem(x: c.x, y: Double(c.y), shade: accent, power: c.power)
+            special.insert(i)
+        }
+        // Everything else: the other colours, with no lines already made.
+        for y in 0..<rows {
+            for x in 0..<cols where !special.contains(idx(x, y)) {
+                var s: Int
+                repeat {
+                    s = Int.random(in: 0..<(shades - 1))
+                } while (x >= 2 && g[idx(x - 1, y)]?.shade == s && g[idx(x - 2, y)]?.shade == s)
+                    || (y >= 2 && g[idx(x, y - 1)]?.shade == s && g[idx(x, y - 2)]?.shade == s)
+                g[idx(x, y)] = newGem(x: x, y: Double(y), shade: s)
+            }
+        }
+        if st.sprinkle {
+            for (x, y) in [(0, 0), (5, 1), (3, 7), (6, 6), (0, 7)] where !special.contains(idx(x, y)) {
+                g[idx(x, y)]?.shade = accent
+            }
+        }
+        for i in g.indices { g[i]?.grow = 0.2 }
+        grid = g
+        guide = (idx(st.move.x, st.move.y), st.move.dx, st.move.dy)
+        awaiting = false
+        step = .idle
+    }
+
+    /// After the stage's swipe has played out, move on.
+    private func stageDone() {
+        guard let n = tutorial else { return }
+        guide = nil
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(0.7))
+            guard let self, self.tutorial == n else { return }
+            self.coach.next()
+            // After the last one, the closing card; the real game starts when it's tapped away.
+            if n + 1 < self.stages.count { self.setUpStage(n + 1) }
+        }
     }
 
     func pause() { if phase == .playing { phase = .paused } }
@@ -203,6 +301,14 @@ final class SwitchGame {
     /// Swipe from a cell in a direction: swap with that neighbour.
     func swipe(from cell: Int, dx: Int, dy: Int) {
         guard phase == .playing, !busy else { return }
+        // In the tutorial, only the swipe it shows.
+        if tutorial != nil {
+            guard let g = guide, g.cell == cell, g.dx == dx, g.dy == dy else {
+                Haptics.tap(.soft, intensity: 0.3)
+                return
+            }
+            awaiting = true
+        }
         let x = cell % cols + dx, y = cell / cols + dy
         guard x >= 0, y >= 0, x < cols, y < rows else { return }
         let other = idx(x, y)
@@ -224,7 +330,6 @@ final class SwitchGame {
         }
         moves += 1
         combo = 1
-        coach.did(.swap)
         resolve(found, focus: [b, a])
     }
 
@@ -317,10 +422,9 @@ final class SwitchGame {
             var k = 0
             while write >= 0 {
                 k += 1
-                // Now and then a line clearer or a circle turns up on its own; a diamond when one is due.
-                let roll = Double.random(in: 0..<1)
-                var power: Gem.Power? = roll < 0.01 ? .row : roll < 0.02 ? .column : roll < 0.026 ? .bomb : nil
-                if diamondDue && Bool.random() { power = .shade; diamondDue = false }
+                // Powers only come from your lines, and one diamond after every 120 squares cleared.
+                var power: Gem.Power?
+                if diamondDue && tutorial == nil && Bool.random() { power = .shade; diamondDue = false }
                 grid[idx(x, write)] = newGem(x: x, y: -Double(k), shade: Int.random(in: 0..<shades), power: power)
                 write -= 1
             }
@@ -337,6 +441,8 @@ final class SwitchGame {
         }
         combo = 1
         step = .idle
+        if awaiting { awaiting = false; stageDone(); return }
+        if tutorial != nil { return }
         if !hasMove() {
             show("Shuffle")
             repeat {

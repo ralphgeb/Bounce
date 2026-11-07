@@ -1,8 +1,8 @@
 import SwiftUI
 
-enum Screen { case menu, bounce, hide, maze, switcher, hue }
+enum Screen { case menu, bounce, maze, switcher, hue }
 
-/// The main menu: five games, one section each, split by thin lines. Drag in a section and its
+/// The main menu: four games, one section each, split by thin lines. Drag in a section and its
 /// logo stretches after your finger and springs back (the others barely move); only a real tap,
 /// without dragging, opens the game.
 struct MenuView: View {
@@ -20,7 +20,6 @@ struct MenuView: View {
     var body: some View {
         let c = colors
         let s = Settings.shared
-        let second = s.secondAccent.color
         VStack(spacing: 0) {
             HStack {
                 Spacer()
@@ -39,23 +38,18 @@ struct MenuView: View {
                     line: "Break the wall that never ends",
                     record: s.best > 0 ? "Best \(s.best)" : nil)
             divider
-            section(1, .hide, word: "HIDE",
-                    fills: [c.ink.opacity(0.12), c.ink.opacity(0.45), c.accent, c.ink.opacity(0.2)],
-                    line: "Play in the dark",
-                    record: s.hideBest > 0 ? "Best \(s.hideBest)" : nil)
-            divider
-            section(2, .maze, word: "MAZE",
+            section(1, .maze, word: "MAZE",
                     fills: [c.ink, c.accent, c.ink.opacity(0.5), c.ink.opacity(0.22)],
                     line: "Find your way out",
                     record: s.mazeDeepest > 1 ? "Level \(s.mazeDeepest)" : nil)
             divider
-            section(3, .switcher, word: "SWITCH",
+            section(2, .switcher, word: "SWITCH",
                     fills: [c.ink.opacity(0.65), c.ink.opacity(0.9), c.ink.opacity(0.15), c.accent, c.ink.opacity(0.4), c.ink.opacity(0.9)],
                     line: "Line up three of a shade",
                     record: s.switchBest > 0 ? "Best \(s.switchBest)" : nil)
             divider
-            section(4, .hue, word: "HUE",
-                    fills: [c.accent, HueColor.mix(c.accent, second, 0.5), second],
+            section(3, .hue, word: "HUE",
+                    fills: HueColor.logo(c.accent),
                     line: "Put the colours in order",
                     record: s.hueSolved > 0 ? "\(s.hueSolved)/\(HueLevels.count)" : nil)
         }

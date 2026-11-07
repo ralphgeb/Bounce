@@ -16,13 +16,17 @@ final class Coach {
     enum Gesture { case none, swipeLeft, swipeRight, swipeAny, tap, hold, dragSideways, swapRight }
 
     /// Little drawings for the steps that explain a rule.
-    enum Picture { case none, switchFour, switchFive, switchT, hideLight, hueFixed, mazeGlow }
+    enum Picture { case none, wallDown, bouncePowers, hueFixed, mazeGlow }
+
+    /// Where an action step's panel sits: near the top (under the score), or low (near the thumb).
+    enum Place { case top, low }
 
     struct Step {
         var text: String
         var waitFor: Action
         var gesture: Gesture = .none
         var picture: Picture = .none
+        var place: Place = .top
     }
 
     private(set) var steps: [Step] = []
@@ -72,14 +76,16 @@ final class Coach {
 
     /// Settings › Show tutorials again.
     static func resetAll() {
-        for g in ["bounce", "hide", "maze", "switch", "hue"] {
+        for g in ["bounce", "maze", "switch", "hue"] {
             UserDefaults.standard.removeObject(forKey: "tutorial.\(g)")
         }
     }
 }
 
-/// Draws the current tutorial step over a game: the line, a finger showing the gesture, a small
-/// picture when there is one, the step dots, and Skip.
+/// Draws the current tutorial step over a game.
+/// Rule cards fill the middle of the screen: a picture, the line, "Tap to continue".
+/// Action steps leave the game playable: a small centred panel at the top (or low), the finger
+/// acting out the gesture, and the step dots. Skip is always there.
 struct CoachOverlay: View {
     let coach: Coach
     let colors: Colors
@@ -87,59 +93,100 @@ struct CoachOverlay: View {
     var body: some View {
         if let step = coach.current {
             ZStack {
-                // Tap-to-continue steps dim the game a little and take the tap anywhere.
                 if step.waitFor == .tapToContinue {
-                    colors.background.opacity(0.82)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture { coach.next() }
+                    card(step)
+                } else {
+                    panel(step)
                 }
-
-                VStack(spacing: 22) {
-                    Spacer()
-                    if step.picture != .none {
-                        CoachPicture(picture: step.picture, colors: colors)
-                            .frame(width: 220, height: 90)
-                            .allowsHitTesting(false)
-                    }
-                    if step.gesture != .none {
-                        FingerHint(gesture: step.gesture, colors: colors)
-                            .frame(width: 160, height: 70)
-                            .allowsHitTesting(false)
-                    }
-                    Text(step.text)
-                        .font(.system(size: 16, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(colors.ink)
-                        .frame(maxWidth: 280)
-                        .allowsHitTesting(false)
-                    if step.waitFor == .tapToContinue {
-                        Text("Tap to continue")
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(2)
-                            .textCase(.uppercase)
-                            .foregroundStyle(colors.ink.opacity(0.4))
-                            .allowsHitTesting(false)
-                    }
-                    HStack(spacing: 6) {
-                        ForEach(0..<coach.steps.count, id: \.self) { i in
-                            Rectangle()
-                                .fill(i == coach.index ? colors.accent : colors.ink.opacity(0.18))
-                                .frame(width: i == coach.index ? 14 : 6, height: 6)
-                        }
-                    }
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: coach.index)
-                    .allowsHitTesting(false)
-                    Button("Skip") { coach.finish() }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(colors.ink.opacity(0.45))
-                        .padding(.bottom, 30)
-                }
-                .id(coach.stepID)
-                .transition(.opacity.combined(with: .offset(y: 10)))
             }
+            .id(coach.stepID)
+            .transition(.opacity)
             .animation(.easeOut(duration: 0.25), value: coach.stepID)
         }
+    }
+
+    // MARK: Rule card
+
+    private func card(_ step: Coach.Step) -> some View {
+        ZStack {
+            colors.background.opacity(0.9)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { coach.next() }
+            VStack(spacing: 26) {
+                Spacer()
+                if step.picture != .none {
+                    CoachPicture(picture: step.picture, colors: colors)
+                        .frame(width: 240, height: 120)
+                }
+                line(step.text, size: 17)
+                Text("Tap to continue")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(2.4)
+                    .textCase(.uppercase)
+                    .foregroundStyle(colors.ink.opacity(0.4))
+                Spacer()
+                dots.padding(.bottom, 70)
+            }
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+            VStack { Spacer(); skip.padding(.bottom, 24) }
+        }
+    }
+
+    // MARK: Action panel
+
+    private func panel(_ step: Coach.Step) -> some View {
+        VStack(spacing: 0) {
+            if step.place == .low { Spacer() }
+            VStack(spacing: 14) {
+                line(step.text, size: 16)
+                if step.gesture != .none {
+                    FingerHint(gesture: step.gesture, colors: colors)
+                        .frame(width: 170, height: 60)
+                }
+                dots
+            }
+            .padding(.vertical, 18)
+            .padding(.horizontal, 22)
+            .frame(maxWidth: 320)
+            .background(colors.background.opacity(0.94))
+            .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.08), lineWidth: 1))
+            .allowsHitTesting(false)
+            skip.padding(.top, 6)
+            if step.place == .top { Spacer() }
+        }
+        .padding(.top, step.place == .top ? 104 : 0)
+        .padding(.bottom, step.place == .low ? 190 : 0)
+    }
+
+    // MARK: Parts
+
+    private func line(_ text: String, size: CGFloat) -> some View {
+        Text(text)
+            .font(.system(size: size, weight: .semibold))
+            .lineSpacing(4)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(colors.ink)
+            .frame(maxWidth: 290)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var dots: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<coach.steps.count, id: \.self) { i in
+                Rectangle()
+                    .fill(i == coach.index ? colors.accent : colors.ink.opacity(0.18))
+                    .frame(width: i == coach.index ? 14 : 6, height: 6)
+            }
+        }
+    }
+
+    private var skip: some View {
+        Button("Skip tutorial") { coach.finish() }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(colors.ink.opacity(0.45))
+            .frame(height: 36)
     }
 }
 
@@ -206,58 +253,73 @@ private struct CoachPicture: View {
         TimelineView(.animation) { tl in
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSinceReferenceDate
-                let s: CGFloat = 22, g: CGFloat = 4
-                func sq(_ x: CGFloat, _ y: CGFloat, _ c: Color) {
-                    ctx.fill(Path(CGRect(x: x, y: y, width: s, height: s)), with: .color(c))
-                }
-                let shade = colors.ink.opacity(0.4)
-                let y = size.height / 2 - s / 2
                 switch picture {
-                case .switchFour, .switchFive:
-                    let n = picture == .switchFour ? 4 : 5
-                    let w = CGFloat(n) * (s + g)
-                    for i in 0..<n { sq(CGFloat(i) * (s + g), y, shade) }
-                    arrow(&ctx, from: w + 6, to: w + 34, y: size.height / 2)
-                    let r = CGRect(x: w + 44, y: y, width: s, height: s)
-                    if picture == .switchFour {
-                        ctx.fill(Chamfer.path(in: r), with: .color(shade))
-                        ctx.fill(Path(CGRect(x: r.midX - 5, y: r.midY - 1, width: 10, height: 2)), with: .color(colors.background))
-                    } else {
-                        ctx.fill(Path(ellipseIn: r), with: .color(shade))
-                        ctx.fill(Path(ellipseIn: CGRect(x: r.midX - 2.5, y: r.midY - 2.5, width: 5, height: 5)), with: .color(colors.background))
-                    }
-                case .switchT:
-                    // A T of five squares, then the diamond.
-                    let ox: CGFloat = 0, oy = size.height / 2 - s * 1.5 - g
-                    for i in 0..<3 { sq(ox + CGFloat(i) * (s + g), oy, shade) }
-                    for j in 1..<3 { sq(ox + (s + g), oy + CGFloat(j) * (s + g), shade) }
-                    let w = 3 * (s + g)
-                    arrow(&ctx, from: w + 6, to: w + 34, y: size.height / 2)
-                    let r = CGRect(x: w + 44, y: size.height / 2 - s / 2, width: s, height: s)
-                    var p = Path()
-                    p.move(to: CGPoint(x: r.midX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
-                    p.addLine(to: CGPoint(x: r.midX, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX, y: r.midY)); p.closeSubpath()
-                    ctx.fill(p, with: .color(shade))
-                case .hideLight, .mazeGlow:
-                    let c = CGPoint(x: size.width / 2, y: size.height / 2)
-                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 60, y: c.y - 60, width: 120, height: 120)),
-                             with: .radialGradient(Gradient(colors: [colors.ink.opacity(0.35), colors.ink.opacity(0)]), center: c, startRadius: 0, endRadius: 60))
-                    if picture == .hideLight {
-                        for i in 0..<5 {
-                            let a = Double(i) / 5 * 2 * .pi + t * 0.3
-                            let p = CGPoint(x: c.x + cos(a) * 38 - 8, y: c.y + sin(a) * 26 - 8)
-                            ctx.fill(Path(CGRect(x: p.x, y: p.y, width: 16, height: 16)), with: .color(colors.ink.opacity(0.7)))
+                case .wallDown:
+                    // Rows of squares drifting down towards the line over the paddle.
+                    let cols = 7, cell: CGFloat = 20, gap: CGFloat = 4
+                    let w = CGFloat(cols) * (cell + gap) - gap
+                    let ox = (size.width - w) / 2
+                    let lineY = size.height - 26
+                    let drift = CGFloat((t * 14).truncatingRemainder(dividingBy: Double(cell + gap)))
+                    for r in 0..<3 {
+                        let ry = CGFloat(r) * (cell + gap) + drift - 6
+                        let fade = min(1, max(0, Double(ry + 10) / 20))
+                        for c in 0..<cols where (r * 3 + c * 5) % 7 != 0 {
+                            let shade = [0.9, 0.5, 0.2][(r + c) % 3]
+                            ctx.fill(Path(CGRect(x: ox + CGFloat(c) * (cell + gap), y: ry, width: cell, height: cell)),
+                                     with: .color(colors.ink.opacity(shade * fade)))
                         }
                     }
-                    let r: CGFloat = picture == .mazeGlow ? 5 : 6
+                    ctx.fill(Path(CGRect(x: ox, y: lineY, width: w, height: 1.5)), with: .color(colors.accent))
+                    ctx.fill(Path(roundedRect: CGRect(x: size.width / 2 - 26, y: lineY + 12, width: 52, height: 7), cornerRadius: 3.5),
+                             with: .color(colors.ink))
+                    for x in [ox - 16, ox + w + 16] {
+                        var p = Path()
+                        p.move(to: CGPoint(x: x, y: 20)); p.addLine(to: CGPoint(x: x, y: lineY - 14))
+                        p.move(to: CGPoint(x: x - 5, y: lineY - 20)); p.addLine(to: CGPoint(x: x, y: lineY - 14)); p.addLine(to: CGPoint(x: x + 5, y: lineY - 20))
+                        ctx.stroke(p, with: .color(colors.ink.opacity(0.3)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    }
+                case .bouncePowers:
+                    // The five power-ups, in a row.
+                    let n = 5, cell: CGFloat = 26, gap: CGFloat = 16
+                    let w = CGFloat(n) * cell + CGFloat(n - 1) * gap
+                    let ox = (size.width - w) / 2, oy = size.height / 2 - cell / 2
+                    for i in 0..<n {
+                        let r = CGRect(x: ox + CGFloat(i) * (cell + gap), y: oy, width: cell, height: cell)
+                        switch i {
+                        case 0:
+                            ctx.fill(Path(r), with: .color(colors.accent))
+                        case 1, 2:
+                            ctx.fill(Chamfer.path(in: r), with: .color(colors.accent))
+                            let m = i == 1 ? CGRect(x: r.midX - 6, y: r.midY - 1.25, width: 12, height: 2.5)
+                                           : CGRect(x: r.midX - 1.25, y: r.midY - 6, width: 2.5, height: 12)
+                            ctx.fill(Path(m), with: .color(colors.background))
+                        case 3:
+                            ctx.stroke(Path(r.insetBy(dx: 1, dy: 1)), with: .color(colors.accent), lineWidth: 2)
+                            ctx.fill(Path(r.insetBy(dx: 4, dy: 4)), with: .color(colors.accent))
+                        default:
+                            ctx.fill(Path(ellipseIn: r), with: .color(colors.accent))
+                        }
+                    }
+                case .mazeGlow:
+                    let c = CGPoint(x: size.width / 2, y: size.height / 2)
+                    let pulse = 1 + 0.1 * sin(t * 3)
+                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 54, y: c.y - 54, width: 108, height: 108)),
+                             with: .radialGradient(Gradient(colors: [colors.accent.opacity(0.5), colors.accent.opacity(0)]), center: c, startRadius: 0, endRadius: 54))
+                    let r: CGFloat = 9 * pulse
                     ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: .color(colors.accent))
                 case .hueFixed:
-                    for i in 0..<6 {
-                        let k = Double(i) / 5
-                        let x = CGFloat(i) * (s + g) + 30
-                        sq(x, y, colors.accent.opacity(0.2 + 0.8 * k))
-                        if i == 0 || i == 5 {
-                            ctx.fill(Path(ellipseIn: CGRect(x: x + s / 2 - 2.5, y: y + s / 2 - 2.5, width: 5, height: 5)), with: .color(colors.ink))
+                    let n = 7, cell: CGFloat = 24, gap: CGFloat = 4
+                    let w = CGFloat(n) * (cell + gap) - gap
+                    let ox = (size.width - w) / 2, oy = size.height / 2 - cell / 2
+                    for i in 0..<n {
+                        let k = Double(i) / Double(n - 1)
+                        let x = ox + CGFloat(i) * (cell + gap)
+                        ctx.fill(Path(CGRect(x: x, y: oy, width: cell, height: cell)),
+                                 with: .color(HueColor.shade(colors.accent, -0.6 + 1.2 * k)))
+                        if i == 0 || i == n - 1 {
+                            ctx.fill(Path(ellipseIn: CGRect(x: x + cell / 2 - 2.5, y: oy + cell / 2 - 2.5, width: 5, height: 5)),
+                                     with: .color(i == 0 ? Color.white.opacity(0.8) : Color.black.opacity(0.55)))
                         }
                     }
                 case .none:

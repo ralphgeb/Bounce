@@ -86,17 +86,23 @@ struct MazeView: View {
             VStack(spacing: 0) {
                 hud
                 Spacer()
-                if game.level == 1 && game.levelTime < 5 && !game.coach.active {
-                    Text("Swipe to move · tap to drop a dot · hold for the map")
-                        .font(.system(size: 12, weight: .semibold))
-                        .tracking(3)
-                        .textCase(.uppercase)
-                        .foregroundStyle(colors.ink.opacity(0.4))
-                        .padding(.bottom, 40)
-                        .transition(.opacity)
+                if game.level == 1 && game.levelTime < 6 && !game.coach.active {
+                    VStack(spacing: 8) {
+                        ForEach(["Swipe to move", "Tap to drop a dot", "Hold to see the map"], id: \.self) { line in
+                            Text(line)
+                                .font(.system(size: 12, weight: .semibold))
+                                .tracking(2.4)
+                                .textCase(.uppercase)
+                                .foregroundStyle(colors.ink.opacity(0.45))
+                        }
+                    }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 44)
+                    .transition(.opacity)
                 }
             }
-            .animation(.easeOut(duration: 0.4), value: game.levelTime < 5)
+            .animation(.easeOut(duration: 0.4), value: game.levelTime < 6)
 
             if let t = game.toast {
                 Text(t.uppercased())

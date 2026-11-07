@@ -33,9 +33,21 @@ enum HueColor {
         Lab(l: a.l + (b.l - a.l) * t, a: a.a + (b.a - a.a) * t, b: a.b + (b.b - a.b) * t)
     }
 
-    /// For the menu logo: two SwiftUI colours mixed.
+    /// Two SwiftUI colours mixed.
     static func mix(_ a: Color, _ b: Color, _ t: Double) -> Color {
         rgb(mix(lab(RGB(a)), lab(RGB(b)), t)).color
+    }
+
+    /// A shade of a colour: towards white (amount > 0) or black (amount < 0), -1...1.
+    static func shade(_ c: Color, _ amount: Double) -> Color {
+        let base = lab(RGB(c))
+        let target = amount > 0 ? lab(RGB(0xFFFFFF)) : lab(RGB(0x000000))
+        return rgb(mix(base, target, min(1, abs(amount)))).color
+    }
+
+    /// Hue's logo: three shades of the accent, light to deep.
+    static func logo(_ accent: Color) -> [Color] {
+        [shade(accent, 0.45), accent, shade(accent, -0.4)]
     }
 }
 
@@ -62,22 +74,34 @@ struct HueLevel {
 enum HueLevels {
     static let cols = 7
     static let rows = 8
-    static let count = 10
+    static let count = 50
 
-    /// Easy to hard: from a bright four-colour board with its whole border fixed and a dozen squares
-    /// out of place, to a narrow two-accent blend with only the four corners fixed.
-    static let all: [HueLevel] = [
-        HueLevel(corners: [.light, .accent, .second, .dark], contrast: 1.0, fixed: .border, shuffled: 12),
-        HueLevel(corners: [.accent, .light, .dark, .second], contrast: 1.0, fixed: .border, shuffled: nil),
-        HueLevel(corners: [.light, .accent, .dark, .accent], contrast: 0.95, fixed: .alternate, shuffled: nil),
-        HueLevel(corners: [.accentSoft, .second, .accent, .dark], contrast: 0.9, fixed: .alternate, shuffled: nil),
-        HueLevel(corners: [.light, .second, .accent, .dark], contrast: 0.85, fixed: .cross, shuffled: nil),
-        HueLevel(corners: [.accent, .light, .accent, .dark], contrast: 0.8, fixed: .cross, shuffled: nil),
-        HueLevel(corners: [.second, .accent, .light, .second], contrast: 0.72, fixed: .anchors, shuffled: nil),
-        HueLevel(corners: [.accent, .second, .dark, .light], contrast: 0.66, fixed: .corners, shuffled: nil),
-        HueLevel(corners: [.light, .accent, .accentSoft, .dark], contrast: 0.56, fixed: .corners, shuffled: nil),
-        HueLevel(corners: [.accent, .second, .secondDeep, .accentSoft], contrast: 0.46, fixed: .corners, shuffled: nil),
+    /// Easy to hard. The first levels are bright, with the whole border fixed and only a few squares
+    /// out of place; then fewer squares are fixed and everything is shuffled; and the colours draw
+    /// closer and closer together, until on level 50 the steps between squares are very subtle.
+    static let all: [HueLevel] = (1...count).map(make)
+
+    private static let palettes: [[HueLevel.Corner]] = [
+        [.light, .accent, .second, .dark],
+        [.accent, .light, .dark, .second],
+        [.light, .accent, .dark, .accent],          // one colour: white, the accent, black
+        [.accentSoft, .second, .accent, .dark],
+        [.light, .second, .accent, .dark],
+        [.accent, .light, .accent, .dark],          // one colour
+        [.second, .accent, .light, .second],
+        [.accent, .second, .dark, .light],
+        [.light, .accent, .accentSoft, .dark],      // one colour
+        [.accent, .second, .secondDeep, .accentSoft],
     ]
+
+    private static func make(_ n: Int) -> HueLevel {
+        let t = Double(n - 1) / Double(count - 1)
+        let fixed: HueLevel.Fixed = n <= 4 ? .border : n <= 10 ? .alternate : n <= 18 ? .cross : n <= 28 ? .anchors : .corners
+        let shuffled: Int? = n == 1 ? 8 : n == 2 ? 14 : n == 3 ? 20 : nil
+        return HueLevel(corners: palettes[(n - 1) % palettes.count],
+                        contrast: 1 - 0.82 * pow(t, 0.85),
+                        fixed: fixed, shuffled: shuffled)
+    }
 
     /// The colour every square should be, row by row.
     static func colors(_ level: HueLevel, accent: RGB, second: RGB) -> [RGB] {

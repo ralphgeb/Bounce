@@ -67,12 +67,6 @@ struct SettingsView: View {
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
 
-                Section("Hide") {
-                    LabeledContent("Best score", value: "\(settings.hideBest)")
-                    LabeledContent("Furthest board", value: settings.hideLevel > 0 ? "\(settings.hideLevel)" : "–")
-                }
-                .listRowBackground(colors.ink.opacity(0.04))
-
                 Section("Maze") {
                     LabeledContent("Deepest level", value: settings.mazeDeepest > 0 ? "\(settings.mazeDeepest)" : "–")
                     LabeledContent("Fastest level 1", value: settings.mazeTimes["1"].map(formatTime) ?? "–")
