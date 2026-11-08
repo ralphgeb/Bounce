@@ -30,7 +30,11 @@ final class Coach {
         /// A tap-to-continue step shown as the small panel above the board instead of a card over
         /// it, so the board stays fully visible (Hue's tutorial).
         var inline = false
+        /// Something on the game's own screen this step is about (the game highlights it).
+        var pointer: Pointer? = nil
     }
+
+    enum Pointer { case counter }
 
     private(set) var steps: [Step] = []
     private(set) var index = 0

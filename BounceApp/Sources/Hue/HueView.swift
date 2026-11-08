@@ -283,7 +283,7 @@ struct HueHome: View {
     private var levels: some View {
         let solved = Settings.shared.hueSolved
         let grid = Array(repeating: GridItem(.fixed(24), spacing: 5), count: 10)
-        return LazyVGrid(columns: grid, spacing: 5) {
+        return LazyVGrid(columns: grid, spacing: 14) {
             ForEach(1...HueLevels.count, id: \.self) { n in
                 let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
                 let open = n <= solved + 1 && !locked
@@ -308,19 +308,18 @@ struct HueHome: View {
                                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(n <= solved ? Color.white.opacity(0.9) : colors.ink.opacity(open ? 0.6 : 0.2))
                         }
-                        // The stars won, as three small marks along the bottom.
-                        let won = Settings.shared.hueStars[String(n)] ?? 0
-                        if won > 0 {
-                            HStack(spacing: 2) {
-                                ForEach(0..<3, id: \.self) { i in
-                                    Rectangle().fill(i < won ? Color.white : Color.white.opacity(0.3)).frame(width: 4, height: 2)
-                                }
-                            }
-                            .frame(maxHeight: .infinity, alignment: .bottom)
-                            .padding(.bottom, 2)
-                        }
                     }
                     .frame(width: 24, height: 24)
+                    // The stars won, as three small marks under the square.
+                    .overlay(alignment: .bottom) {
+                        let won = Settings.shared.hueStars[String(n)] ?? 0
+                        HStack(spacing: 2) {
+                            ForEach(0..<3, id: \.self) { i in
+                                Rectangle().fill(i < won ? colors.accent : colors.ink.opacity(0.12)).frame(width: 4, height: 2)
+                            }
+                        }
+                        .offset(y: 9)
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(open ? "Level \(n)" : "Level \(n), locked")

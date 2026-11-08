@@ -441,7 +441,7 @@ final class Game {
         guard let b = damage(i) else { return }
         let m = ball.chain
         score += b.max * m
-        ball.chain = min(ball.chain + 1, 9)
+        ball.chain += 1     // no ceiling: it keeps counting
         ball.run += 1
         // Ten in a row without the paddle: an extra life (at most 5).
         if ball.run % 10 == 0 {

@@ -52,7 +52,7 @@ final class MazeGame {
 
     /// The count of squares to the star shows until you're within a fifth of the way: then you're
     /// close, and it's up to you (and your dots).
-    var showsDistance: Bool { !inTutorial && Double(stepsToStar) > Double(startSteps) * 0.2 }
+    var showsDistance: Bool { Double(stepsToStar) > Double(startSteps) * 0.2 }
 
     /// The time for three stars: a second and a half a slide, plus ten seconds.
     var parTime: Double { Double(fewestSlides) * 1.5 + 10 }
@@ -134,6 +134,8 @@ final class MazeGame {
             .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap),
             .init(text: "Swipe left to move away,\nthen right to come back.\nTap to pick the dot up.", waitFor: .pickDot),
             .init(text: "Pinch to zoom out and see the map.\nLet go to come back.", waitFor: .hold, gesture: .pinch),
+            .init(text: "Top right: the counter to the star.\nIt counts the squares left to walk,\nand switches off once you're close.",
+                  waitFor: .tapToContinue, inline: true, pointer: .counter),
             .init(text: "Swipe up, then right,\nto reach the star.", waitFor: .goal),
             .init(text: "That's the game.\nFind the star in every level.\nFewer slides win more stars.\nThere are 40 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
         ], onFinish: { [weak self] in self?.endTutorial() })

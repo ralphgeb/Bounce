@@ -191,20 +191,26 @@ struct MazeView: View {
                     .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(colors.ink.opacity(0.35))
                 // How far the star is, walking, until you're close; then it's up to you.
-                if !game.inTutorial {
-                    Group {
-                        if game.showsDistance {
-                            Text("\(game.stepsToStar) to the star")
-                                .contentTransition(.numericText())
-                        } else {
-                            Text("Close. Find it.")
-                        }
+                Group {
+                    if game.showsDistance {
+                        Text("\(game.stepsToStar) to the star")
+                            .contentTransition(.numericText())
+                    } else {
+                        Text("Close. Find it.")
                     }
-                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(colors.accent)
-                    .padding(.top, 6)
-                    .animation(.easeOut(duration: 0.3), value: game.stepsToStar)
                 }
+                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .foregroundStyle(colors.accent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                // The tutorial points at it: a pulsing outline.
+                .overlay {
+                    if game.coach.current?.pointer == .counter {
+                        PulsingFrame(color: colors.accent)
+                    }
+                }
+                .padding(.top, 2)
+                .animation(.easeOut(duration: 0.3), value: game.stepsToStar)
             }
         }
         .padding(.horizontal, 24)
@@ -227,6 +233,22 @@ struct MazeView: View {
             }
         }
         .transition(.opacity)
+    }
+}
+
+/// An outline that breathes, to point something out.
+private struct PulsingFrame: View {
+    let color: Color
+    @State private var on = false
+    var body: some View {
+        Rectangle()
+            .strokeBorder(color, lineWidth: 2)
+            .padding(-4)
+            .opacity(on ? 1 : 0.25)
+            .scaleEffect(on ? 1.06 : 0.98)
+            .shadow(color: color.opacity(0.7), radius: on ? 8 : 2)
+            .onAppear { withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { on = true } }
+            .allowsHitTesting(false)
     }
 }
 
@@ -306,7 +328,7 @@ struct MazeHome: View {
         let grid = Array(repeating: GridItem(.fixed(22), spacing: 6), count: 10)
         let total = s.mazeStars.values.reduce(0, +)
         return VStack(spacing: 10) {
-            LazyVGrid(columns: grid, spacing: 8) {
+            LazyVGrid(columns: grid, spacing: 10) {
                 ForEach(1...Maze.levels, id: \.self) { n in
                     let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
                     let open = n <= reached && !locked
@@ -317,7 +339,7 @@ struct MazeHome: View {
                         game.chosen = n
                         Haptics.tap(.light)
                     } label: {
-                        VStack(spacing: 3) {
+                        VStack(spacing: 7) {
                             ZStack {
                                 Rectangle().fill(open ? colors.accent.opacity(0.25 + 0.75 * Double(n) / Double(Maze.levels)) : colors.ink.opacity(0.06))
                                 if game.chosen == n {

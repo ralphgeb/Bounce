@@ -329,23 +329,23 @@ struct SwitchView: View {
     /// Every power piece shines: a soft diagonal band of light sweeps across it from the top left,
     /// then rests, over and over (each piece at its own moment). The diamond's shine is brighter.
     private func shine(_ ctx: inout GraphicsContext, _ shape: Path, _ r: CGRect, id: Int, alpha: Double, strong: Bool) {
-        let period = 2.6
+        let period = 1.9
         let t = (game.clock + Double(id % 9) * 0.37).truncatingRemainder(dividingBy: period) / period
-        let sweep = 0.42                       // the part of each cycle the band is moving
+        let sweep = 0.55                       // the part of each cycle the band is moving
         guard t < sweep else { return }
         let k = t / sweep
         let eased = k * k * (3 - 2 * k)
         // The band runs along the diagonal from top left to bottom right.
         let span = r.width + r.height
         let centre = -r.width * 0.3 + (span + r.width * 0.6) * CGFloat(eased)
-        let half = r.width * 0.22
+        let half = r.width * 0.32
         var band = Path()
         band.move(to: CGPoint(x: r.minX + centre - half, y: r.minY))
         band.addLine(to: CGPoint(x: r.minX + centre + half, y: r.minY))
         band.addLine(to: CGPoint(x: r.minX + centre + half - r.height, y: r.maxY))
         band.addLine(to: CGPoint(x: r.minX + centre - half - r.height, y: r.maxY))
         band.closeSubpath()
-        let peak = (strong ? 0.6 : 0.38) * alpha * sin(Double.pi * k)
+        let peak = (strong ? 0.95 : 0.75) * alpha * sin(Double.pi * k)
         let a = CGPoint(x: r.minX + centre - half, y: r.minY + r.height / 2)
         let b = CGPoint(x: r.minX + centre + half, y: r.minY + r.height / 2)
         ctx.drawLayer { l in
