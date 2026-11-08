@@ -63,12 +63,12 @@ struct Maze {
     }
 
     /// How many levels there are.
-    static let levels = 20
+    static let levels = 40
 
     /// Rooms across and down: tiny to start (5 × 7 on level 1, 6 × 8, 7 × 9…), growing faster from
-    /// level 5 (38 × 53 on level 20).
+    /// level 5 to 19 × 26 on level 10, then slowly (27 × 37 on level 20, 43 × 60 on level 40).
     static func size(_ level: Int) -> (cols: Int, rows: Int) {
-        let cw = 4 + level + Int(Double(max(0, level - 4)) * 0.9)
+        let cw = level <= 10 ? 4 + level + Int(Double(max(0, level - 4)) * 0.9) : 19 + Int(Double(level - 10) * 0.8)
         return (cw, Int(Double(cw) * 1.4))
     }
 
@@ -78,7 +78,7 @@ struct Maze {
     /// out is nearest a walk that grows with the level.
     static func generate(level: Int) -> Maze {
         let (cw, ch) = size(level)
-        let target = Int(Double(2 * cw * ch) * (0.22 + 0.012 * Double(level)))
+        let target = Int(Double(2 * cw * ch) * (0.22 + 0.012 * Double(min(level, 20)) + 0.004 * Double(max(0, level - 20))))
         var best: (maze: Maze, steps: Int)?
         for attempt in 0..<12 {
             let m = build(level: level, attempt: attempt)
@@ -140,7 +140,7 @@ struct Maze {
                 let x = cx * 2 + 1, y = cy * 2 + 1
                 var walls: [(Int, Int)] = []
                 for (dx, dy) in dirs where m.isWall(x + dx, y + dy) { walls.append((dx, dy)) }
-                guard walls.count == 3, roll(100) < max(30, 90 - 3 * level) else { continue }
+                guard walls.count == 3, roll(100) < max(25, 90 - 3 * level) else { continue }
                 let inside = walls.filter { d in
                     let nx = x + d.0 * 2, ny = y + d.1 * 2
                     return nx > 0 && ny > 0 && nx < m.width - 1 && ny < m.height - 1
@@ -152,13 +152,33 @@ struct Maze {
         }
 
         m.start = (sx * 2 + 1, sy * 2 + 1)
-        let far = m.farthest(from: m.start)
+        let far = m.farthest(from: m.start, level: level)
         m.goal = far.tile
         return (m, far.steps)
     }
 
     /// The floor tile with the longest walk from here.
-    private func farthest(from s: (x: Int, y: Int)) -> (tile: (x: Int, y: Int), steps: Int) {
+    /// How many squares each floor tile is from the way out, walking (-1 for walls).
+    func walkDistances() -> [Int] {
+        var dist = Array(repeating: -1, count: width * height)
+        var queue = [(goal.x, goal.y)], head = 0
+        dist[goal.y * width + goal.x] = 0
+        while head < queue.count {
+            let (x, y) = queue[head]; head += 1
+            let d = dist[y * width + x]
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] where !isWall(x + dx, y + dy) {
+                let i = (y + dy) * width + x + dx
+                if dist[i] < 0 { dist[i] = d + 1; queue.append((x + dx, y + dy)) }
+            }
+        }
+        return dist
+    }
+
+    /// From level 11 the way out is no longer simply the farthest spot: it's the one with the longest
+    /// walk for how near it is in a straight line, so it can be close by and still a long way round.
+    private func farthest(from s: (x: Int, y: Int), level: Int) -> (tile: (x: Int, y: Int), steps: Int) {
+        let k = level <= 10 ? 0.0 : min(1.6, Double(level - 10) * 0.06)
+        func score(_ x: Int, _ y: Int, _ d: Int) -> Double { Double(d) - k * Double(abs(x - s.x) + abs(y - s.y)) }
         var dist = Array(repeating: -1, count: width * height)
         var queue = [(s.x, s.y)], head = 0
         dist[s.y * width + s.x] = 0
@@ -166,7 +186,7 @@ struct Maze {
         while head < queue.count {
             let (x, y) = queue[head]; head += 1
             let d = dist[y * width + x]
-            if d > dist[best.y * width + best.x] { best = (x, y) }
+            if score(x, y, d) > score(best.x, best.y, dist[best.y * width + best.x]) { best = (x, y) }
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] where !isWall(x + dx, y + dy) {
                 let i = (y + dy) * width + x + dx
                 if dist[i] < 0 { dist[i] = d + 1; queue.append((x + dx, y + dy)) }

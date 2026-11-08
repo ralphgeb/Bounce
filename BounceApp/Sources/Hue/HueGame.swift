@@ -25,6 +25,9 @@ final class HueGame {
     var askUnlock = false
     /// Playing the tutorial's one-row board (the first time only).
     private(set) var inTutorial = false
+    /// The fewest swaps that solve this board, and the stars won (1 to 3).
+    private(set) var fewestSwaps = 0
+    private(set) var stars = 0
 
     @ObservationIgnored private(set) var colors: [RGB] = []
     @ObservationIgnored private(set) var order: [Int] = []      // order[place] = tile id there
@@ -97,6 +100,14 @@ final class HueGame {
 
     private func shuffleIn() {
         order = inTutorial ? HueLevels.tutorialOrder : HueLevels.shuffle(level, number: number)
+        // Each loop of k squares out of place takes k − 1 swaps.
+        var visited = Set<Int>()
+        fewestSwaps = 0
+        for start in order.indices where !visited.contains(start) && order[start] != start {
+            var i = start, length = 0
+            while !visited.contains(i) { visited.insert(i); i = order[i]; length += 1 }
+            fewestSwaps += length - 1
+        }
         phase = .playing
         Haptics.tap(.medium)
         coach.begin("hue", steps: [
@@ -166,6 +177,9 @@ final class HueGame {
         if inTutorial { Haptics.notify(.success); return }
         let s = Settings.shared
         let key = String(number)
+        // Stars: three for the fewest swaps, two for a few more, one otherwise.
+        stars = swaps <= fewestSwaps ? 3 : swaps <= fewestSwaps + max(3, fewestSwaps / 4) ? 2 : 1
+        if stars > (s.hueStars[key] ?? 0) { s.hueStars[key] = stars }
         if swaps < (s.hueBest[key] ?? .max) { s.hueBest[key] = swaps; newBest = true }
         if number > s.hueSolved { s.hueSolved = number }
         chosen = min(HueLevels.count, number + 1)

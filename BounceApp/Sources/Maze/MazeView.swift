@@ -93,6 +93,13 @@ struct MazeView: View {
             }
             .animation(.easeOut(duration: 0.4), value: game.levelTime < 6)
 
+            // Level done: the stars won, and slides against the fewest possible.
+            if game.phase == .cleared && !game.inTutorial {
+                levelDone
+                    .id(game.starsID)
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+            }
+
             if let t = game.toast {
                 Text(t.uppercased())
                     .font(.system(size: 13, weight: .bold))
@@ -109,6 +116,31 @@ struct MazeView: View {
             if game.phase == .paused { paused }
         }
         .animation(.easeOut(duration: 0.25), value: game.toastID)
+    }
+
+    private var levelDone: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                ForEach(0..<3, id: \.self) { i in
+                    let won = i < game.lastStars
+                    StarShape()
+                        .fill(won ? colors.accent : colors.ink.opacity(0.15))
+                        .frame(width: 34, height: 34)
+                        .shadow(color: won ? colors.accent.opacity(0.7) : .clear, radius: 10)
+                        .scaleEffect(won ? 1 : 0.85)
+                }
+            }
+            Text("Level \(game.level) · \(game.slides) slides · fewest \(game.fewestSlides)")
+                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                .foregroundStyle(colors.ink.opacity(0.75))
+            Text(game.lastStars == 3 ? "Perfect" : game.lastStars == 2 ? "Three stars: fewer slides, a little faster" : "Three stars: close to the fewest slides, in time")
+                .font(.system(size: 12))
+                .foregroundStyle(colors.ink.opacity(0.5))
+        }
+        .padding(.vertical, 26)
+        .padding(.horizontal, 24)
+        .background(colors.background.opacity(0.85))
+        .allowsHitTesting(false)
     }
 
     private var hud: some View {
@@ -158,6 +190,21 @@ struct MazeView: View {
                 Text(formatTime(game.levelTime))
                     .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(colors.ink.opacity(0.35))
+                // How far the star is, walking, until you're close; then it's up to you.
+                if !game.inTutorial {
+                    Group {
+                        if game.showsDistance {
+                            Text("\(game.stepsToStar) to the star")
+                                .contentTransition(.numericText())
+                        } else {
+                            Text("Close. Find it.")
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(colors.accent)
+                    .padding(.top, 6)
+                    .animation(.easeOut(duration: 0.3), value: game.stepsToStar)
+                }
             }
         }
         .padding(.horizontal, 24)
@@ -251,53 +298,72 @@ struct MazeHome: View {
         }
     }
 
-    /// The twenty levels as two rows of squares: ones you've reached are filled (tap one to start
-    /// there), the one picked is outlined, the rest are still dark.
+    /// The forty levels as four rows of squares: ones you've reached are filled (tap one to start
+    /// there), with the stars you've won as three small marks; the one picked is outlined.
     private var levels: some View {
-        let reached = max(1, Settings.shared.mazeDeepest)
+        let s = Settings.shared
+        let reached = max(1, s.mazeDeepest)
         let grid = Array(repeating: GridItem(.fixed(22), spacing: 6), count: 10)
-        return LazyVGrid(columns: grid, spacing: 6) {
-            ForEach(1...Maze.levels, id: \.self) { n in
-                let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
-                let open = n <= reached && !locked
-                Button {
-                    if locked { game.askUnlock = true; return }
-                    guard open else { Haptics.tap(.soft, intensity: 0.3); return }
-                    game.chosen = n
-                    Haptics.tap(.light)
-                } label: {
-                    ZStack {
-                        Rectangle().fill(open ? colors.accent.opacity(0.25 + 0.75 * Double(n) / Double(Maze.levels)) : colors.ink.opacity(0.06))
-                        if game.chosen == n {
-                            Rectangle().strokeBorder(colors.ink, lineWidth: 1.5).padding(-3)
-                        }
-                        if locked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(colors.ink.opacity(0.3))
-                        } else {
-                            Text("\(n)")
-                                .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(open ? Color.white.opacity(0.9) : colors.ink.opacity(0.25))
+        let total = s.mazeStars.values.reduce(0, +)
+        return VStack(spacing: 10) {
+            LazyVGrid(columns: grid, spacing: 8) {
+                ForEach(1...Maze.levels, id: \.self) { n in
+                    let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
+                    let open = n <= reached && !locked
+                    let stars = s.mazeStars[String(n)] ?? 0
+                    Button {
+                        if locked { game.askUnlock = true; return }
+                        guard open else { Haptics.tap(.soft, intensity: 0.3); return }
+                        game.chosen = n
+                        Haptics.tap(.light)
+                    } label: {
+                        VStack(spacing: 3) {
+                            ZStack {
+                                Rectangle().fill(open ? colors.accent.opacity(0.25 + 0.75 * Double(n) / Double(Maze.levels)) : colors.ink.opacity(0.06))
+                                if game.chosen == n {
+                                    Rectangle().strokeBorder(colors.ink, lineWidth: 1.5).padding(-3)
+                                }
+                                if locked {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 8, weight: .semibold))
+                                        .foregroundStyle(colors.ink.opacity(0.3))
+                                } else {
+                                    Text("\(n)")
+                                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                                        .foregroundStyle(open ? Color.white.opacity(0.9) : colors.ink.opacity(0.25))
+                                }
+                            }
+                            .frame(width: 22, height: 22)
+                            HStack(spacing: 2) {
+                                ForEach(0..<3, id: \.self) { i in
+                                    Rectangle().fill(i < stars ? colors.accent : colors.ink.opacity(0.12)).frame(width: 4, height: 2)
+                                }
+                            }
                         }
                     }
-                    .frame(width: 22, height: 22)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(locked ? "Level \(n), locked" : open ? "Level \(n), \(stars) stars" : "Level \(n), not reached yet")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(locked ? "Level \(n), locked" : open ? "Level \(n)" : "Level \(n), not reached yet")
+            }
+            .frame(width: 10 * 22 + 9 * 6)
+            if total > 0 {
+                Text("\(total) of \(Maze.levels * 3) stars")
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .tracking(1.2)
+                    .textCase(.uppercase)
+                    .foregroundStyle(colors.ink.opacity(0.45))
             }
         }
-        .frame(width: 10 * 22 + 9 * 6)
     }
 
     private var rules: some View {
         VStack(alignment: .leading, spacing: 12) {
             rule(Rectangle().fill(colors.accent).frame(width: 12, height: 12), "You. Swipe to slide to the next turning")
             rule(glowMark, "Your light shines all around. Walls cast shadows")
-            rule(Circle().fill(colors.accent).frame(width: 6, height: 6), "Tap to drop a dot, tap again to pick it up")
+            rule(Circle().fill(colors.accent).frame(width: 6, height: 6), "Drop dots to mark where you've been")
             rule(mapMark, "Pinch to see the map")
             rule(revealMark, "Find one to see the whole maze for 3 seconds")
-            rule(goalMark, "Reach the star to go deeper. 20 levels")
+            rule(goalMark, "Reach the star. Fewer slides, more stars")
         }
     }
 
@@ -343,7 +409,7 @@ struct MazeHome: View {
     private var result: String {
         let s = Settings.shared
         if let r = game.lastRun, r.level >= Maze.levels, s.mazeFinished, game.newRecord {
-            return "Out of all 20 levels · \(formatTime(r.time))"
+            return "Out of all \(Maze.levels) levels · \(formatTime(r.time))"
         }
         if let r = game.lastRun {
             let deepest = max(s.mazeDeepest, r.level)

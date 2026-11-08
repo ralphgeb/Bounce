@@ -136,13 +136,13 @@ enum MazeRenderer {
         if s.showGoal {
             let g = CGPoint(x: Double(s.maze.goal.x) + 0.5, y: Double(s.maze.goal.y) + 0.5)
             let gs = screen(g)
-            // On the zoomed-out map the star always shows, so you can see where you're heading.
-            if light.contains(gs) || hypot(Double(g.x - s.pos.x), Double(g.y - s.pos.y)) < 1.5 || s.map > 0.15 {
+            // Only when your light reaches it (not on the map: finding it is the game).
+            if light.contains(gs) || hypot(Double(g.x - s.pos.x), Double(g.y - s.pos.y)) < 1.5 {
                 let pulse = 1 + 0.1 * sin(s.time * 3)
                 ctx.fill(Path(ellipseIn: CGRect(x: gs.x - T * 1.6, y: gs.y - T * 1.6, width: T * 3.2, height: T * 3.2)),
                          with: .radialGradient(Gradient(colors: [c.accent.opacity(0.5), c.accent.opacity(0)]),
                                                center: gs, startRadius: 0, endRadius: T * 1.6))
-                ctx.fill(Star.path(center: gs, radius: max(T * 0.34, 9 * CGFloat(s.map)) * pulse, turn: s.time * 0.5), with: .color(c.accent))
+                ctx.fill(Star.path(center: gs, radius: T * 0.34 * pulse, turn: s.time * 0.5), with: .color(c.accent))
             }
         }
 

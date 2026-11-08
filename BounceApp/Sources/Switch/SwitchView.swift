@@ -2,17 +2,22 @@ import SwiftUI
 
 /// Switch's colours: five that go together, built around the theme's accent (Colour), and the logo.
 enum SwitchColors {
-    /// Colour: a richer take on Mono, all built from the accent and the main colour so they sit
-    /// together: a deep accent, a light accent, the accent itself, a dark grey and a light grey.
-    static func colourful(_ colors: Colors) -> [Color] {
+    /// The seven colours, ordered so index 6 is the accent itself.
+    ///
+    /// Mono: four greys of the main colour (90%, 62%, 38%, 16%) and three tones of the accent
+    /// (deep, light, the accent).
+    /// Colour: three tones of a partner colour (the accent of another look, picked to sit well with
+    /// yours), a dark grey, and three tones of the accent.
+    static func palette(_ p: SwitchGame.Palette, _ colors: Colors) -> [Color] {
         let a = colors.accent
-        return [
-            HueColor.shade(a, -0.42),          // deep accent
-            HueColor.shade(a, 0.5),            // light accent
-            colors.ink.opacity(0.85),          // dark grey
-            colors.ink.opacity(0.3),           // light grey
-            a,                                 // the accent (index 4, as in Mono)
-        ]
+        let accentTones = [HueColor.shade(a, -0.38), HueColor.shade(a, 0.5), a]
+        switch p {
+        case .mono:
+            return [colors.ink.opacity(0.9), colors.ink.opacity(0.62), colors.ink.opacity(0.38), colors.ink.opacity(0.16)] + accentTones
+        case .colour:
+            let b = Settings.shared.secondAccent.color
+            return [HueColor.shade(b, -0.42), b, HueColor.shade(b, 0.55), colors.ink.opacity(0.85)] + accentTones
+        }
     }
 
     static func logo(_ colors: Colors) -> [Color] {
@@ -48,6 +53,8 @@ struct SwitchView: View {
 
     @State private var swiped = false
     @State private var from: Int?
+    /// The seven colours, worked out once (not every frame).
+    @State private var palette: [Color] = []
 
     var body: some View {
         let frame = game.frame
@@ -58,6 +65,8 @@ struct SwitchView: View {
                     _ = frame
                     draw(&ctx, layout)
                 }
+                .onAppear { palette = SwitchColors.palette(game.palette, colors) }
+                .onChange(of: game.palette) { palette = SwitchColors.palette(game.palette, colors) }
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
@@ -275,15 +284,8 @@ struct SwitchView: View {
     }
 
     private func shadeColor(_ s: Int) -> Color {
-        if game.palette == .colour { return SwitchColors.colourful(colors)[min(4, max(0, s))] }
-        switch s {
-        // Even steps of the main colour, from 90% down to 15%, and the accent.
-        case 0: return colors.ink.opacity(0.9)
-        case 1: return colors.ink.opacity(0.65)
-        case 2: return colors.ink.opacity(0.4)
-        case 3: return colors.ink.opacity(0.15)
-        default: return colors.accent
-        }
+        let pal = palette.isEmpty ? SwitchColors.palette(game.palette, colors) : palette
+        return pal[min(pal.count - 1, max(0, s))]
     }
 
     private func piece(_ ctx: inout GraphicsContext, _ g: Gem, _ L: SwitchLayout, gap: CGFloat, scale: Double, alpha: Double) {

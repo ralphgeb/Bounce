@@ -12,7 +12,10 @@ class R:
         z=((z^(z>>30))*0xBF58476D1CE4E5B9)&M; z=((z^(z>>27))*0x94D049BB133111EB)&M
         return z^(z>>31)
 def size(level):
-    cw=4+level+int(max(0,level-4)*0.9)
+    if level<=10:
+        cw=4+level+int(max(0,level-4)*0.9)
+    else:
+        cw=19+int((level-10)*0.8)
     return cw,int(cw*1.4)
 def gen1(level, attempt):
     rng=R((level*7919+104729+attempt*1_000_003)&M); roll=lambda n: rng.next()%n
@@ -40,15 +43,17 @@ def gen1(level, attempt):
         for cx in range(cw):
             x,y=cx*2+1,cy*2+1
             walls=[(dx,dy) for dx,dy in((1,0),(-1,0),(0,1),(0,-1)) if isw(x+dx,y+dy)]
-            if len(walls)!=3 or not roll(100)<max(30,90-3*level): continue
+            if len(walls)!=3 or not roll(100)<max(25,90-3*level): continue
             inside=[d for d in walls if 0<x+d[0]*2<W-1 and 0<y+d[1]*2<H-1]
             if not inside: continue
             d=inside[roll(len(inside))]; op(x+d[0],y+d[1])
     start=(sx*2+1,sy*2+1)
     dist={start:0}; prev={}; q=deque([start]); best=start
+    kk=0.0 if level<=10 else min(1.6,(level-10)*0.06)
+    score=lambda p: dist[p]-kk*(abs(p[0]-start[0])+abs(p[1]-start[1]))
     while q:
         p=q.popleft()
-        if dist[p]>dist[best]: best=p
+        if score(p)>score(best): best=p
         for dx,dy in((1,0),(-1,0),(0,1),(0,-1)):
             n=(p[0]+dx,p[1]+dy)
             if not isw(*n) and n not in dist: dist[n]=dist[p]+1; prev[n]=p; q.append(n)
@@ -58,7 +63,7 @@ def gen1(level, attempt):
     return isw,W,H,start,best,path,dist[best],dead
 def gen(level):
     cw,ch=size(level)
-    target=int(2*cw*ch*(0.22+0.012*level))
+    target=int(2*cw*ch*(0.22+0.012*min(level,20)+0.004*max(0,level-20)))
     best=None
     for a in range(12):
         g=gen1(level,a)
@@ -77,12 +82,14 @@ def draw(level, box):
     gx,gy=goal; d.ellipse((gx*t-t//2,gy*t-t//2,gx*t+t+t//2,gy*t+t+t//2),fill=acc)
     return im,(W,H,L,dead)
 import os
+import os
 out=os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'maze-levels')
 os.makedirs(out, exist_ok=True)
+os.makedirs(out, exist_ok=True)
 font=ImageFont.load_default(size=22); small=ImageFont.load_default(size=16)
-cellw,cellh=420,600; sheet=Image.new('RGB',(cellw*5,cellh*4+70),(255,255,255)); sd=ImageDraw.Draw(sheet)
-sd.text((20,20),"MAZE  ·  20 levels  ·  accent square = start, circle = way out, light path = shortest route",fill=ink,font=font)
-for lv in range(1,21):
+cellw,cellh=420,600; sheet=Image.new('RGB',(cellw*5,cellh*8+70),(255,255,255)); sd=ImageDraw.Draw(sheet)
+sd.text((20,20),"MAZE  ·  40 levels  ·  accent square = start, circle = way out, light path = shortest route",fill=ink,font=font)
+for lv in range(1,41):
     im,(W,H,L,dead)=draw(lv,(cellw-30,cellh-80))
     im.save(f'{out}/level-{lv:02d}.png')
     i=lv-1; cx,cy=(i%5)*cellw,(i//5)*cellh+70
@@ -91,4 +98,4 @@ for lv in range(1,21):
     sd.text((cx+130,cy+16),f"{W}x{H} tiles · {L} steps · {dead} dead ends",fill=(120,120,120),font=small)
     print(lv,W,H,L,dead)
 sheet.save(f'{out}/../maze-levels.png')
-big,_=draw(20,(1400,2000)); big.save(f'{out}/../maze-level-20.png')
+big,_=draw(40,(1400,2000)); big.save(f'{out}/../maze-level-40.png')

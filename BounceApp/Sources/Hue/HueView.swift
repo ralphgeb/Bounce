@@ -109,9 +109,18 @@ struct HueView: View {
     private var solvedCard: some View {
         VStack(spacing: 18) {
             Spacer()
-            Text(game.newBest ? "Solved · \(game.swaps) swaps · best" : "Solved · \(game.swaps) swaps")
+            HStack(spacing: 14) {
+                ForEach(0..<3, id: \.self) { i in
+                    let won = i < game.stars
+                    StarShape()
+                        .fill(won ? colors.accent : colors.ink.opacity(0.15))
+                        .frame(width: 30, height: 30)
+                        .shadow(color: won ? colors.accent.opacity(0.6) : .clear, radius: 8)
+                }
+            }
+            Text("Solved · \(game.swaps) swaps · fewest \(game.fewestSwaps)")
                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .tracking(2)
+                .tracking(1.6)
                 .textCase(.uppercase)
                 .foregroundStyle(colors.ink.opacity(0.7))
             if game.number < HueLevels.count {
@@ -299,6 +308,17 @@ struct HueHome: View {
                                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(n <= solved ? Color.white.opacity(0.9) : colors.ink.opacity(open ? 0.6 : 0.2))
                         }
+                        // The stars won, as three small marks along the bottom.
+                        let won = Settings.shared.hueStars[String(n)] ?? 0
+                        if won > 0 {
+                            HStack(spacing: 2) {
+                                ForEach(0..<3, id: \.self) { i in
+                                    Rectangle().fill(i < won ? Color.white : Color.white.opacity(0.3)).frame(width: 4, height: 2)
+                                }
+                            }
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                            .padding(.bottom, 2)
+                        }
                     }
                     .frame(width: 24, height: 24)
                 }
@@ -332,7 +352,10 @@ struct HueHome: View {
 
     private var result: String {
         let s = Settings.shared
-        if let b = s.hueBest[String(game.chosen)] { return "Level \(game.chosen) · best \(b) swaps" }
+        let total = s.hueStars.values.reduce(0, +)
+        if let b = s.hueBest[String(game.chosen)] {
+            return "Level \(game.chosen) · best \(b) swaps · \(total) of \(HueLevels.count * 3) stars"
+        }
         return s.hueSolved >= HueLevels.count ? "All \(HueLevels.count) solved" : " "
     }
 }

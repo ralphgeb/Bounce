@@ -37,9 +37,11 @@ final class SwitchGame {
         case showing(Double, Outcome)
     }
 
-    let cols = 7
+    let cols = 8
     let rows = 8
-    let shades = 5
+    /// Seven colours: four of one family and three of the accent (the last one, index 6, is the
+    /// accent itself, which the tutorial uses).
+    let shades = 7
 
     private(set) var phase: Phase = .ready
     private(set) var score = 0

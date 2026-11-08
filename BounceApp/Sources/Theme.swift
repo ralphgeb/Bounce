@@ -103,7 +103,10 @@ final class Settings {
     /// Maze: the deepest level reached, and the fastest time for each level ("1": seconds).
     var mazeDeepest: Int { didSet { defaults.set(mazeDeepest, forKey: "maze.deepest") } }
     var mazeTimes: [String: Double] { didSet { defaults.set(mazeTimes, forKey: "maze.times") } }
-    /// Maze: level 20's way out has been found.
+    /// Stars (1 to 3) won on each level, best kept: "1": 3.
+    var mazeStars: [String: Int] { didSet { defaults.set(mazeStars, forKey: "maze.stars") } }
+    var hueStars: [String: Int] { didSet { defaults.set(hueStars, forKey: "hue.stars") } }
+    /// Maze: the last level's way out has been found.
     var mazeFinished: Bool { didSet { defaults.set(mazeFinished, forKey: "maze.finished") } }
     /// Hue: how many levels are solved, and the fewest swaps for each ("1": swaps).
     var hueSolved: Int { didSet { defaults.set(hueSolved, forKey: "hue.solved") } }
@@ -122,6 +125,8 @@ final class Settings {
         mazeDeepest = defaults.integer(forKey: "maze.deepest")
         mazeTimes = defaults.dictionary(forKey: "maze.times") as? [String: Double] ?? [:]
         mazeFinished = defaults.bool(forKey: "maze.finished")
+        mazeStars = defaults.dictionary(forKey: "maze.stars") as? [String: Int] ?? [:]
+        hueStars = defaults.dictionary(forKey: "hue.stars") as? [String: Int] ?? [:]
         switchBest = defaults.integer(forKey: "switch.best")
         hueSolved = defaults.integer(forKey: "hue.solved")
         hueBest = defaults.dictionary(forKey: "hue.best") as? [String: Int] ?? [:]

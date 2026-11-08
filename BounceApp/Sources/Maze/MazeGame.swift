@@ -39,6 +39,23 @@ final class MazeGame {
     var askUnlock = false
     /// Playing the tutorial's own small maze (the first time only).
     private(set) var inTutorial = false
+    /// Slides made on this level, and the fewest that reach the star.
+    private(set) var slides = 0
+    private(set) var fewestSlides = 1
+    /// Squares from you to the star (walking), and from the start.
+    private(set) var stepsToStar = 0
+    private(set) var startSteps = 1
+    /// Stars won on the level just finished (1 to 3).
+    private(set) var lastStars = 0
+    private(set) var starsID = 0
+    @ObservationIgnored private var walk: [Int] = []
+
+    /// The count of squares to the star shows until you're within a fifth of the way: then you're
+    /// close, and it's up to you (and your dots).
+    var showsDistance: Bool { !inTutorial && Double(stepsToStar) > Double(startSteps) * 0.2 }
+
+    /// The time for three stars: a second and a half a slide, plus ten seconds.
+    var parTime: Double { Double(fewestSlides) * 1.5 + 10 }
     private(set) var dotsLeft = 10
     /// The last dots you were given, and when (for the little animation).
     private(set) var dotGain = 0
@@ -118,7 +135,7 @@ final class MazeGame {
             .init(text: "Swipe left to move away,\nthen right to come back.\nTap to pick the dot up.", waitFor: .pickDot),
             .init(text: "Pinch to zoom out and see the map.\nLet go to come back.", waitFor: .hold, gesture: .pinch),
             .init(text: "Swipe up, then right,\nto reach the star.", waitFor: .goal),
-            .init(text: "That's the game.\nFind the star in every level.\nEach one is bigger. There are 20.", waitFor: .tapToContinue, picture: .mazeGlow),
+            .init(text: "That's the game.\nFind the star in every level.\nFewer slides win more stars.\nThere are 40 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
         ], onFinish: { [weak self] in self?.endTutorial() })
     }
 
@@ -160,6 +177,11 @@ final class MazeGame {
     }
 
     private func resetBoard() {
+        walk = maze.walkDistances()
+        fewestSlides = max(1, fewestSlidesToStar())
+        slides = 0
+        startSteps = max(1, walk[maze.start.y * maze.width + maze.start.x])
+        stepsToStar = startSteps
         tile = maze.start
         pos = center(tile)
         target = nil; moving = nil; queued = nil
@@ -269,6 +291,7 @@ final class MazeGame {
         }
         target = (x, y)
         moving = d
+        slides += 1
     }
 
     private func arrive() {
@@ -277,6 +300,7 @@ final class MazeGame {
         pos = center(t)
         target = nil
         moving = nil
+        stepsToStar = max(0, walk[t.y * maze.width + t.x])
         Haptics.tap(.light, intensity: 0.45)
         if t.x == maze.goal.x && t.y == maze.goal.y { cleared(); return }
         // Tutorial: while it asks you to drop or pick up a dot, you can't wander more than two
@@ -311,6 +335,14 @@ final class MazeGame {
         Haptics.notify(.success)
         let s = Settings.shared
         let key = String(level)
+        // Stars: three for close to the fewest slides within the time, two for up to about twice
+        // the fewest, one otherwise.
+        var stars = 1
+        if slides <= fewestSlides * 2 + 2 { stars = 2 }
+        if slides <= Int((Double(fewestSlides) * 1.25).rounded(.up)) && levelTime <= parTime { stars = 3 }
+        lastStars = stars
+        starsID += 1
+        if stars > (s.mazeStars[key] ?? 0) { s.mazeStars[key] = stars }
         if levelTime < (s.mazeTimes[key] ?? .infinity) { s.mazeTimes[key] = levelTime }
         let last = level >= Maze.levels
         let reached = last ? Maze.levels : level + 1
@@ -341,14 +373,39 @@ final class MazeGame {
             }
             return
         }
-        show("Level \(level + 1)")
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.1))
+            try? await Task.sleep(for: .seconds(2.2))
             guard let self, self.phase == .cleared else { return }
             self.level += 1
             self.load(self.level)
             self.phase = .playing
+            self.show("Level \(self.level)")
         }
+    }
+
+    /// The fewest slides from the start to the star (each slide goes to the next wall or turning).
+    private func fewestSlidesToStar() -> Int {
+        let w = maze.width
+        var seen = [Int: Int]()
+        var queue = [(maze.start.x, maze.start.y)], head = 0
+        seen[maze.start.y * w + maze.start.x] = 0
+        while head < queue.count {
+            let (x0, y0) = queue[head]; head += 1
+            let d = seen[y0 * w + x0]!
+            if x0 == maze.goal.x && y0 == maze.goal.y { return d }
+            for dir in Dir.allCases {
+                var x = x0, y = y0, n = 0
+                while !maze.isWall(x + dir.dx, y + dir.dy) {
+                    x += dir.dx; y += dir.dy; n += 1
+                    if x == maze.goal.x && y == maze.goal.y { break }
+                    if !maze.isWall(x + dir.dy, y + dir.dx) || !maze.isWall(x - dir.dy, y - dir.dx) { break }
+                }
+                guard n > 0, seen[y * w + x] == nil else { continue }
+                seen[y * w + x] = d + 1
+                queue.append((x, y))
+            }
+        }
+        return 1
     }
 
     private func show(_ text: String) {
