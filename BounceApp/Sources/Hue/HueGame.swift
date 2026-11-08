@@ -101,10 +101,10 @@ final class HueGame {
         Haptics.tap(.medium)
         coach.begin("hue", steps: [
             .init(text: "Put the colours back in order.\nThey run smoothly from one end to the other.\nSquares with a dot never move.",
-                  waitFor: .tapToContinue, picture: .hueFixed),
+                  waitFor: .tapToContinue, inline: true),
             .init(text: "Drag the outlined square\nonto the other one to swap them.", waitFor: .swap),
             .init(text: "One more.\nYou can also tap one square, then the other.", waitFor: .swap),
-            .init(text: "That's it.\nEach level is a bigger board.", waitFor: .tapToContinue),
+            .init(text: "Solved: every colour is in its place.\nEach level is a bigger board.", waitFor: .tapToContinue, inline: true),
         ], onFinish: { [weak self] in self?.endTutorial() })
     }
 

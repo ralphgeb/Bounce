@@ -27,6 +27,9 @@ final class Coach {
         var gesture: Gesture = .none
         var picture: Picture = .none
         var place: Place = .top
+        /// A tap-to-continue step shown as the small panel above the board instead of a card over
+        /// it, so the board stays fully visible (Hue's tutorial).
+        var inline = false
     }
 
     private(set) var steps: [Step] = []
@@ -96,9 +99,16 @@ struct CoachOverlay: View {
     var body: some View {
         if let step = coach.current {
             ZStack {
-                if step.waitFor == .tapToContinue {
+                if step.waitFor == .tapToContinue && !step.inline {
                     card(step)
                 } else {
+                    if step.waitFor == .tapToContinue {
+                        // Tap anywhere to continue; the board stays in full view.
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .ignoresSafeArea()
+                            .onTapGesture { coach.next() }
+                    }
                     panel(step)
                 }
             }
@@ -145,6 +155,13 @@ struct CoachOverlay: View {
                 if step.place == .low { Spacer() }
                 VStack(spacing: 14) {
                     line(step.text, size: 16)
+                    if step.waitFor == .tapToContinue {
+                        Text("Tap to continue")
+                            .font(.system(size: 11, weight: .semibold))
+                            .tracking(2.4)
+                            .textCase(.uppercase)
+                            .foregroundStyle(colors.ink.opacity(0.45))
+                    }
                     if step.gesture != .none {
                         FingerHint(gesture: step.gesture, colors: colors)
                             .frame(width: 170, height: 60)
