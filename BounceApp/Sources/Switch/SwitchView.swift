@@ -8,7 +8,7 @@ enum SwitchColors {
     /// (deep, light, the accent).
     /// Colour: three tones of a partner colour (the accent of another look, picked to sit well with
     /// yours), a dark grey, and three tones of the accent.
-    static func palette(_ p: SwitchGame.Palette, _ colors: Colors) -> [Color] {
+    @MainActor static func palette(_ p: SwitchGame.Palette, _ colors: Colors) -> [Color] {
         let a = colors.accent
         let accentTones = [HueColor.shade(a, -0.38), HueColor.shade(a, 0.5), a]
         switch p {
