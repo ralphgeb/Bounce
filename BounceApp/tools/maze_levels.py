@@ -11,13 +11,16 @@ class R:
         s.st=(s.st+0x9E3779B97F4A7C15)&M; z=s.st
         z=((z^(z>>30))*0xBF58476D1CE4E5B9)&M; z=((z^(z>>27))*0x94D049BB133111EB)&M
         return z^(z>>31)
+def size(level):
+    cw=4+level+int(max(0,level-4)*0.9)
+    return cw,int(cw*1.4)
 def gen1(level, attempt):
     rng=R((level*7919+104729+attempt*1_000_003)&M); roll=lambda n: rng.next()%n
-    cw,ch=8+2*level,11+3*level; W,H=cw*2+1,ch*2+1
+    cw,ch=size(level); W,H=cw*2+1,ch*2+1
     wall=[True]*(W*H)
     def op(x,y): wall[y*W+x]=False
     isw=lambda x,y: x<0 or y<0 or x>=W or y>=H or wall[y*W+x]
-    branchy=min(0.08,(level-1)*0.08/19)
+    branchy=min(0.1,(level-1)*0.1/19)
     sx,sy=cw//2,ch-1; vis=[False]*(cw*ch); act=[(sx,sy)]; vis[sy*cw+sx]=True; op(sx*2+1,sy*2+1)
     while act:
         br=roll(1000)/1000<branchy
@@ -37,7 +40,7 @@ def gen1(level, attempt):
         for cx in range(cw):
             x,y=cx*2+1,cy*2+1
             walls=[(dx,dy) for dx,dy in((1,0),(-1,0),(0,1),(0,-1)) if isw(x+dx,y+dy)]
-            if len(walls)!=3 or not roll(100)<50: continue
+            if len(walls)!=3 or not roll(100)<max(30,90-3*level): continue
             inside=[d for d in walls if 0<x+d[0]*2<W-1 and 0<y+d[1]*2<H-1]
             if not inside: continue
             d=inside[roll(len(inside))]; op(x+d[0],y+d[1])
@@ -54,7 +57,8 @@ def gen1(level, attempt):
     dead=sum(1 for y in range(H) for x in range(W) if not isw(x,y) and sum(isw(x+a,y+b) for a,b in((1,0),(-1,0),(0,1),(0,-1)))==3)
     return isw,W,H,start,best,path,dist[best],dead
 def gen(level):
-    target=110+18*level
+    cw,ch=size(level)
+    target=int(2*cw*ch*(0.22+0.012*level))
     best=None
     for a in range(12):
         g=gen1(level,a)

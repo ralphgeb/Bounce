@@ -110,6 +110,8 @@ final class Settings {
 
     private init() {
         lookID = defaults.string(forKey: "look") ?? "graphite"
+        freeLook = defaults.string(forKey: "freeLook") ?? defaults.string(forKey: "look") ?? "graphite"
+        onboarded = defaults.bool(forKey: "onboarded")
         mode = AppearanceMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .system
         haptics = defaults.object(forKey: "haptics") as? Bool ?? true
         best = defaults.integer(forKey: "best")
@@ -122,7 +124,18 @@ final class Settings {
         hueBest = defaults.dictionary(forKey: "hue.best") as? [String: Int] ?? [:]
     }
 
-    var look: Look { Look.all.first { $0.id == lookID } ?? Look.all[0] }
+    /// The look picked at the start: free. The others come with Unlock everything.
+    var freeLook: String { didSet { defaults.set(freeLook, forKey: "freeLook") } }
+    /// Has the welcome been seen.
+    var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }
+
+    /// The look in use: the one picked, or the free one while the others are locked.
+    var look: Look {
+        let id = Unlock.shared.isUnlocked ? lookID : freeLook
+        return Look.all.first { $0.id == id } ?? Look.all[0]
+    }
+
+    func isLookOpen(_ l: Look) -> Bool { Unlock.shared.isUnlocked || l.id == freeLook }
 
     /// A second accent for Hue's two-colour levels: the accent of another look.
     var secondAccent: RGB {

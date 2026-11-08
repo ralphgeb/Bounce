@@ -220,7 +220,8 @@ final class SwitchGame {
         if phase != .ready {
             lastScore = score
             let s = Settings.shared
-            if score > s.switchBest { s.switchBest = score; newBest = score > 0 }
+            // Best scores are kept once everything is unlocked.
+            if Unlock.shared.isUnlocked && score > s.switchBest { s.switchBest = score; newBest = score > 0 }
         }
         phase = .ready
         ticker.stop()

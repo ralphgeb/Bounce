@@ -180,8 +180,11 @@ final class Game {
     private func gameOver() {
         phase = .over
         let s = Settings.shared
-        if score > s.best { s.best = score; newBest = score > 0 }
-        if elapsed > s.longest { s.longest = elapsed }
+        // Best scores are kept once everything is unlocked.
+        if Unlock.shared.isUnlocked {
+            if score > s.best { s.best = score; newBest = score > 0 }
+            if elapsed > s.longest { s.longest = elapsed }
+        }
         Haptics.notify(.error)
         stopLoop()
         frame &+= 1

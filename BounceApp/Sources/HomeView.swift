@@ -83,6 +83,7 @@ struct HomeView: View {
         let s = Settings.shared
         let best = s.best
         guard game.phase == .over else { return best > 0 ? "Best \(best)" : " " }
+        if !Unlock.shared.isUnlocked { return "\(game.score) · \(formatTime(game.elapsed)) · unlock to keep your best" }
         if game.newBest { return "New best · \(game.score) · \(formatTime(game.elapsed))" }
         return "\(game.score) · \(formatTime(game.elapsed)) · best \(best)"
     }

@@ -68,8 +68,6 @@ struct MenuView: View {
     }
 
     private func section(_ index: Int, _ screen: Screen, word: String, fills: [Color], line: String, record: String?) -> some View {
-        // Bounce is free; the others open with Unlock all games.
-        let locked = screen != .bounce && !unlock.isUnlocked
         return VStack(spacing: 12) {
             ElasticLogo(word: word, fills: fills, ink: colors.ink, squareSize: 22, letterSize: 18,
                         drag: active == index ? drag : CGSize(width: drag.width * 0.1, height: drag.height * 0.1),
@@ -87,9 +85,7 @@ struct MenuView: View {
                 }
             }
         }
-        .opacity(locked ? 0.4 : 1)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay { if locked { LockBadge(colors: colors) } }
         .background(colors.ink.opacity(pressed == index && travelled < 10 ? 0.04 : 0))
         .contentShape(Rectangle())
         .scaleEffect(pressed == index && travelled < 10 ? 0.985 : 1)
@@ -113,13 +109,13 @@ struct MenuView: View {
                     pressed = nil
                     if tapped {
                         Haptics.tap(.medium)
-                        if locked { showUnlock = true } else { open(screen) }
+                        open(screen)
                     }
                 }
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(locked ? "\(word.capitalized). Locked" : "\(word.capitalized). \(line)")
+        .accessibilityLabel("\(word.capitalized). \(line)")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { if locked { showUnlock = true } else { open(screen) } }
+        .accessibilityAction { open(screen) }
     }
 }

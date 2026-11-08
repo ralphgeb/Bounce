@@ -25,10 +25,14 @@ struct SettingsView: View {
                 .listRowBackground(colors.ink.opacity(0.04))
 
                 Section {
-                    // The five looks as one line of accent squares; the chosen one is outlined.
+                    // The five looks as small 3 × 3 grids; the chosen one is outlined. One is free (picked
+                    // at the start); the others open with Unlock everything.
                     HStack(spacing: 0) {
                         ForEach(Look.all) { look in
+                            let chosen = look.id == settings.look.id
+                            let open = settings.isLookOpen(look)
                             Button {
+                                guard open else { showUnlock = true; return }
                                 settings.lookID = look.id
                                 Haptics.tap(.light)
                                 if iconFollowsLook { setIcon(look) }
@@ -36,22 +40,30 @@ struct SettingsView: View {
                                 VStack(spacing: 7) {
                                     LookSwatch(look: look, dark: scheme == .dark)
                                         .frame(width: 40, height: 40)
+                                        .opacity(open ? 1 : 0.45)
+                                        .overlay {
+                                            if !open {
+                                                Image(systemName: "lock.fill")
+                                                    .font(.system(size: 11, weight: .semibold))
+                                                    .foregroundStyle(colors.ink.opacity(0.75))
+                                            }
+                                        }
                                         .padding(5)
                                         .overlay(
                                             Rectangle()
                                                 .strokeBorder(colors.ink, lineWidth: 1.5)
-                                                .opacity(look.id == settings.lookID ? 1 : 0)
+                                                .opacity(chosen ? 1 : 0)
                                         )
                                     Text(look.name)
-                                        .font(.system(size: 10, weight: look.id == settings.lookID ? .semibold : .regular))
-                                        .foregroundStyle(colors.ink.opacity(look.id == settings.lookID ? 0.9 : 0.5))
+                                        .font(.system(size: 10, weight: chosen ? .semibold : .regular))
+                                        .foregroundStyle(colors.ink.opacity(chosen ? 0.9 : 0.5))
                                 }
                                 .frame(maxWidth: .infinity)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(look.name)
-                            .accessibilityAddTraits(look.id == settings.lookID ? .isSelected : [])
+                            .accessibilityLabel(open ? look.name : "\(look.name), locked")
+                            .accessibilityAddTraits(chosen ? .isSelected : [])
                         }
                     }
                     .padding(.vertical, 4)
@@ -83,10 +95,10 @@ struct SettingsView: View {
 
                 Section {
                     if unlock.owned && !unlock.reset {
-                        LabeledContent("All games", value: "Unlocked")
+                        LabeledContent("Everything", value: "Unlocked")
                     } else {
                         Button { showUnlock = true } label: {
-                            Text("Unlock all games · \(unlock.price)").foregroundStyle(colors.accent)
+                            Text("Unlock everything · \(unlock.price)").foregroundStyle(colors.accent)
                         }
                     }
                     Button("Restore purchases") { Task { await unlock.restore() } }

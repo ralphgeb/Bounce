@@ -19,7 +19,7 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
-        CFBundleDisplayName: Bounce
+        CFBundleDisplayName: Bricks
         LSApplicationCategoryType: public.app-category.arcade-games
         UILaunchScreen:
           UIColorName: LaunchBackground

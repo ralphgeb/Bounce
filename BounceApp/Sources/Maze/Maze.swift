@@ -40,12 +40,20 @@ struct Maze {
     /// How many levels there are.
     static let levels = 20
 
-    /// Level 1 is 10 × 14 rooms; each level adds 2 across and 3 down (level 20 is 48 × 71).
-    /// Mostly long winding corridors with only a little branching (few dead ends), and a few loops.
-    /// Of 12 tries, each level keeps the maze whose way out is closest to 110 + 18 × level steps
-    /// away, so every level is a longer walk than the last without getting mean.
+    /// Rooms across and down: tiny to start (5 × 7 on level 1, 6 × 8, 7 × 9…), growing faster from
+    /// level 5 (38 × 53 on level 20).
+    static func size(_ level: Int) -> (cols: Int, rows: Int) {
+        let cw = 4 + level + Int(Double(max(0, level - 4)) * 0.9)
+        return (cw, Int(Double(cw) * 1.4))
+    }
+
+    /// The learning curve is slow: the first levels are tiny, with almost no dead ends, so nobody gets
+    /// lost on level 1; then they grow, branch a little more and keep fewer dead ends open, so level 10
+    /// is a fair challenge and level 20 a real one. Of 12 tries, each level keeps the maze whose way
+    /// out is nearest a walk that grows with the level.
     static func generate(level: Int) -> Maze {
-        let target = 110 + 18 * level
+        let (cw, ch) = size(level)
+        let target = Int(Double(2 * cw * ch) * (0.22 + 0.012 * Double(level)))
         var best: (maze: Maze, steps: Int)?
         for attempt in 0..<12 {
             let m = build(level: level, attempt: attempt)
@@ -57,13 +65,13 @@ struct Maze {
     private static func build(level: Int, attempt: Int) -> (maze: Maze, steps: Int) {
         var rng = SeededRandom(seed: UInt64(level) &* 7919 &+ 104_729 &+ UInt64(attempt) &* 1_000_003)
         func roll(_ n: Int) -> Int { Int(rng.next() % UInt64(n)) }
-        let cw = 8 + 2 * level, ch = 11 + 3 * level
+        let (cw, ch) = size(level)
         var m = Maze(width: cw * 2 + 1, height: ch * 2 + 1)
         func open(_ x: Int, _ y: Int) { m.wall[y * m.width + x] = false }
 
         // Carve a growing tree from the bottom middle. Mostly it carries on from the newest room
         // (long winding corridors); more and more often it branches from an older one.
-        let branchy = min(0.08, Double(level - 1) * 0.08 / 19)
+        let branchy = min(0.1, Double(level - 1) * 0.1 / 19)
         let sx = cw / 2, sy = ch - 1
         var visited = Array(repeating: false, count: cw * ch)
         var active = [(sx, sy)]
@@ -100,13 +108,14 @@ struct Maze {
             if across || down { open(x, y); made += 1 }
         }
 
-        // Open about half the dead ends into the next corridor, so wrong turns are fewer and shorter.
+        // Open most dead ends into the next corridor on early levels (90% on level 1), fewer later
+        // (30% from level 20), so wrong turns are rare at first and short later.
         for cy in 0..<ch {
             for cx in 0..<cw {
                 let x = cx * 2 + 1, y = cy * 2 + 1
                 var walls: [(Int, Int)] = []
                 for (dx, dy) in dirs where m.isWall(x + dx, y + dy) { walls.append((dx, dy)) }
-                guard walls.count == 3, roll(100) < 50 else { continue }
+                guard walls.count == 3, roll(100) < max(30, 90 - 3 * level) else { continue }
                 let inside = walls.filter { d in
                     let nx = x + d.0 * 2, ny = y + d.1 * 2
                     return nx > 0 && ny > 0 && nx < m.width - 1 && ny < m.height - 1

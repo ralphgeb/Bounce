@@ -233,8 +233,12 @@ struct MazeHome: View {
             }
         }
         .elasticDrag($drag)
+        .sheet(isPresented: Binding(get: { game.askUnlock }, set: { game.askUnlock = $0 })) {
+            UnlockSheet(colors: colors)
+        }
         .onAppear {
-            let reached = max(1, min(Maze.levels, Settings.shared.mazeDeepest))
+            let cap = Unlock.shared.isUnlocked ? Maze.levels : Unlock.freeLevels
+            let reached = max(1, min(cap, Settings.shared.mazeDeepest))
             if game.chosen > reached || game.lastRun == nil { game.chosen = reached }
             dropped = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
@@ -248,8 +252,10 @@ struct MazeHome: View {
         let grid = Array(repeating: GridItem(.fixed(22), spacing: 6), count: 10)
         return LazyVGrid(columns: grid, spacing: 6) {
             ForEach(1...Maze.levels, id: \.self) { n in
-                let open = n <= reached
+                let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
+                let open = n <= reached && !locked
                 Button {
+                    if locked { game.askUnlock = true; return }
                     guard open else { Haptics.tap(.soft, intensity: 0.3); return }
                     game.chosen = n
                     Haptics.tap(.light)
@@ -259,14 +265,20 @@ struct MazeHome: View {
                         if game.chosen == n {
                             Rectangle().strokeBorder(colors.ink, lineWidth: 1.5).padding(-3)
                         }
-                        Text("\(n)")
-                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(open ? Color.white.opacity(0.9) : colors.ink.opacity(0.25))
+                        if locked {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(colors.ink.opacity(0.3))
+                        } else {
+                            Text("\(n)")
+                                .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(open ? Color.white.opacity(0.9) : colors.ink.opacity(0.25))
+                        }
                     }
                     .frame(width: 22, height: 22)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(open ? "Level \(n)" : "Level \(n), not reached yet")
+                .accessibilityLabel(locked ? "Level \(n), locked" : open ? "Level \(n)" : "Level \(n), not reached yet")
             }
         }
         .frame(width: 10 * 22 + 9 * 6)

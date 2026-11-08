@@ -448,6 +448,7 @@ struct SwitchHome: View {
     private var result: String {
         let best = Settings.shared.switchBest
         guard let s = game.lastScore else { return best > 0 ? "Best \(best)" : " " }
+        if !Unlock.shared.isUnlocked { return "\(s) · unlock to keep your best" }
         return game.newBest ? "New best · \(s)" : "\(s) · best \(best)"
     }
 }

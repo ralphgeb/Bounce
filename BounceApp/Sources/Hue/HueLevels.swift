@@ -69,15 +69,15 @@ struct HueLevel {
     let contrast: Double           // 1 = full; lower pulls the corners together (harder)
     let fixed: Fixed
     let shuffled: Int?             // nil = every square that isn't fixed
+    var cols = 7
+    var rows = 8
 }
 
 enum HueLevels {
-    static let cols = 7
-    static let rows = 8
     static let count = 50
 
-    /// Easy to hard, gently. The first levels are bright, with the whole border fixed and only a
-    /// few squares out of place. Difficulty climbs until about level 25 and then levels off: after
+    /// Easy to hard, gently. The first levels are small and bright, with the whole border fixed and
+    /// only a few squares out of place. Difficulty climbs until about level 25 and then levels off: after
     /// that the colours stay about as close as there, so a long run stays enjoyable.
     static let all: [HueLevel] = (1...count).map(make)
 
@@ -94,14 +94,18 @@ enum HueLevels {
         [.accent, .second, .secondDeep, .accentSoft],
     ]
 
+    /// The first boards are small (5 × 5, 6 × 6, 6 × 7, 7 × 7), then 7 × 8 from level 5.
+    private static let sizes: [(Int, Int)] = [(5, 5), (6, 6), (6, 7), (7, 7)]
+
     private static func make(_ n: Int) -> HueLevel {
         let d = min(1, Double(n - 1) / 24)                  // 0 on level 1, 1 from level 25
         let fixed: HueLevel.Fixed = n <= 6 ? .border : n <= 14 ? .alternate : n <= 24 ? .cross : n <= 38 ? .anchors : .corners
-        let partial = [8, 12, 16, 20, 26, 30, 34]           // squares out of place on levels 1 to 7
+        let partial = [6, 10, 14, 18, 24, 30, 34]           // squares out of place on levels 1 to 7
         let shuffled: Int? = n <= partial.count ? partial[n - 1] : nil
+        let size = n <= sizes.count ? sizes[n - 1] : (7, 8)
         return HueLevel(corners: palettes[(n - 1) % palettes.count],
                         contrast: 1 - 0.45 * pow(d, 1.2),   // never closer than 55%
-                        fixed: fixed, shuffled: shuffled)
+                        fixed: fixed, shuffled: shuffled, cols: size.0, rows: size.1)
     }
 
     /// The colour every square should be, row by row.
@@ -118,6 +122,7 @@ enum HueLevels {
             case .secondDeep: return HueColor.mix(b, black, 0.45)
             }
         }
+        let cols = level.cols, rows = level.rows
         var cs = level.corners.map(corner)
         // Lower contrast: pull each corner towards the middle colour.
         let mean = HueColor.Lab(l: cs.map(\.l).reduce(0, +) / 4, a: cs.map(\.a).reduce(0, +) / 4, b: cs.map(\.b).reduce(0, +) / 4)
@@ -134,6 +139,7 @@ enum HueLevels {
     }
 
     static func isFixed(_ level: HueLevel, _ i: Int) -> Bool {
+        let cols = level.cols, rows = level.rows
         let x = i % cols, y = i / cols
         let edge = x == 0 || y == 0 || x == cols - 1 || y == rows - 1
         let corner = (x == 0 || x == cols - 1) && (y == 0 || y == rows - 1)
@@ -149,7 +155,7 @@ enum HueLevels {
     /// The starting order: the same for everyone on each level. order[place] = the square there.
     static func shuffle(_ level: HueLevel, number: Int) -> [Int] {
         var rng = SeededRandom(seed: UInt64(number) &* 15_485_863 &+ 7)
-        let n = cols * rows
+        let n = level.cols * level.rows
         var order = Array(0..<n)
         var movable = (0..<n).filter { !isFixed(level, $0) }
         if let k = level.shuffled {

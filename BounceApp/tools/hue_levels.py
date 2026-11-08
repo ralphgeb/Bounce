@@ -18,17 +18,18 @@ PAL=[['light', 'accent', 'second', 'dark'], ['accent', 'light', 'dark', 'second'
 def make(n):
     d=min(1,(n-1)/24)
     fx='border' if n<=6 else 'alternate' if n<=14 else 'cross' if n<=24 else 'anchors' if n<=38 else 'corners'
-    partial=[8,12,16,20,26,30,34]
+    partial=[6,10,14,18,24,30,34]
     sh=str(partial[n-1]) if n<=len(partial) else 'all'
-    return (PAL[(n-1)%len(PAL)], 1-0.45*d**1.2, fx, sh)
+    size=[(5,5),(6,6),(6,7),(7,7)][n-1] if n<=4 else (7,8)
+    return (PAL[(n-1)%len(PAL)], 1-0.45*d**1.2, fx, sh, size)
 L=[make(n) for n in range(1,51)]
-cols,rows=7,8
 def fixed(kind,x,y):
     edge=x in(0,cols-1) or y in(0,rows-1); corner=x in(0,cols-1) and y in(0,rows-1)
     return {'border':edge,'alternate':edge and (x+y)%2==0,'cross':corner or (x==3 and y in(0,7)) or (y==4 and x in(0,6)) or (x==3 and y==4),'anchors':corner or (x in(2,4) and y in(2,5)),'corners':corner}[kind]
-c=16; per=10; cw,chh=cols*c+24, rows*c+44
+c=16; per=10; cw,chh=7*c+24, 8*c+44
 sheet=Image.new('RGB',(per*cw+20, 5*chh+20),(255,255,255)); d=ImageDraw.Draw(sheet); f=ImageFont.load_default(size=13)
-for i,(cs,ct,fx,sh) in enumerate(L):
+for i,(cs,ct,fx,sh,(cols,rows)) in enumerate(L):
+    globals()['cols'],globals()['rows']=cols,rows
     cc=[tok[t] for t in cs]; mean=tuple(sum(v[k] for v in cc)/4 for k in range(3)); cc=[mix(mean,v,ct) for v in cc]
     ox=20+(i%per)*cw; oy=20+(i//per)*chh
     nfix=sum(fixed(fx,x,y) for y in range(rows) for x in range(cols))

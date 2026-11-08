@@ -21,6 +21,8 @@ final class HueGame {
     private(set) var newBest = false
     /// The level picked on the landing page.
     var chosen = 1
+    /// Set when a locked level is wanted: offer Unlock everything.
+    var askUnlock = false
 
     @ObservationIgnored private(set) var colors: [RGB] = []
     @ObservationIgnored private(set) var order: [Int] = []      // order[place] = tile id there
@@ -33,8 +35,9 @@ final class HueGame {
     @ObservationIgnored private(set) var clock: Double = 0
     @ObservationIgnored private var previewLeft: Double = 0
 
-    let cols = HueLevels.cols
-    let rows = HueLevels.rows
+    /// The board's size: small on the first levels, 7 × 8 from level 5.
+    var cols: Int { level.cols }
+    var rows: Int { level.rows }
     let coach = Coach()
     private let ticker = FrameTicker()
 
@@ -60,7 +63,7 @@ final class HueGame {
 
     /// Show the finished board for a moment, then shuffle it.
     func start(_ n: Int? = nil) {
-        number = max(1, min(HueLevels.count, n ?? chosen))
+        number = max(1, min(Unlock.shared.isUnlocked ? HueLevels.count : Unlock.freeLevels, n ?? chosen))
         chosen = number
         level = HueLevels.all[number - 1]
         let s = Settings.shared
@@ -82,7 +85,10 @@ final class HueGame {
     }
 
     func next() {
-        start(min(HueLevels.count, number + 1))
+        let n = min(HueLevels.count, number + 1)
+        // Levels past the free ones need Unlock everything.
+        if n > Unlock.freeLevels && !Unlock.shared.isUnlocked { askUnlock = true; return }
+        start(n)
     }
 
     private func shuffleIn() {

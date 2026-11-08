@@ -35,6 +35,8 @@ final class MazeGame {
     private(set) var newRecord = false
     /// The level picked on the landing page (any level you've reached).
     var chosen = 1
+    /// Set when a run reaches a locked level: the landing page then offers Unlock everything.
+    var askUnlock = false
     private(set) var dotsLeft = 10
     /// The last dots you were given, and when (for the little animation).
     private(set) var dotGain = 0
@@ -96,7 +98,7 @@ final class MazeGame {
     // MARK: Phases
 
     func start() {
-        level = max(1, min(Maze.levels, chosen))
+        level = max(1, min(Unlock.shared.isUnlocked ? Maze.levels : Unlock.freeLevels, chosen))
         totalTime = 0
         newRecord = false
         // 10 dots on level 1, and the 3 a level you'd have earned getting this far.
@@ -288,6 +290,18 @@ final class MazeGame {
                 guard let self, self.phase == .cleared else { return }
                 self.phase = .playing
                 self.home()
+            }
+            return
+        }
+        // Levels past the free ones need Unlock everything: end the run and offer it.
+        if level + 1 > Unlock.freeLevels && !Unlock.shared.isUnlocked {
+            show("Level \(level + 1) is locked")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard let self, self.phase == .cleared else { return }
+                self.phase = .playing
+                self.home()
+                self.askUnlock = true
             }
             return
         }

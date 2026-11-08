@@ -61,6 +61,9 @@ struct HueView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: game.phase == .solved)
+        .sheet(isPresented: Binding(get: { game.askUnlock }, set: { game.askUnlock = $0 })) {
+            UnlockSheet(colors: colors)
+        }
     }
 
     private var hud: some View {
@@ -255,8 +258,12 @@ struct HueHome: View {
                 .padding(.bottom, 64)
         }
         .elasticDrag($drag)
+        .sheet(isPresented: Binding(get: { game.askUnlock }, set: { game.askUnlock = $0 })) {
+            UnlockSheet(colors: colors)
+        }
         .onAppear {
-            game.chosen = min(HueLevels.count, max(game.chosen, s.hueSolved + 1))
+            let cap = Unlock.shared.isUnlocked ? HueLevels.count : Unlock.freeLevels
+            game.chosen = min(cap, max(game.chosen, s.hueSolved + 1))
             dropped = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.55)) { dropped = true }
         }
@@ -269,9 +276,11 @@ struct HueHome: View {
         let grid = Array(repeating: GridItem(.fixed(24), spacing: 5), count: 10)
         return LazyVGrid(columns: grid, spacing: 5) {
             ForEach(1...HueLevels.count, id: \.self) { n in
-                let open = n <= solved + 1
+                let locked = n > Unlock.freeLevels && !Unlock.shared.isUnlocked
+                let open = n <= solved + 1 && !locked
                 let fill = HueColor.shade(colors.accent, 0.5 - Double(n - 1) / Double(HueLevels.count - 1))
                 Button {
+                    if locked { game.askUnlock = true; return }
                     guard open else { Haptics.tap(.soft, intensity: 0.3); return }
                     game.chosen = n
                     Haptics.tap(.light)
@@ -281,9 +290,15 @@ struct HueHome: View {
                         if game.chosen == n {
                             Rectangle().strokeBorder(colors.ink, lineWidth: 1.5).padding(-3)
                         }
-                        Text("\(n)")
-                            .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(n <= solved ? Color.white.opacity(0.9) : colors.ink.opacity(open ? 0.6 : 0.2))
+                        if locked {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(colors.ink.opacity(0.3))
+                        } else {
+                            Text("\(n)")
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(n <= solved ? Color.white.opacity(0.9) : colors.ink.opacity(open ? 0.6 : 0.2))
+                        }
                     }
                     .frame(width: 24, height: 24)
                 }

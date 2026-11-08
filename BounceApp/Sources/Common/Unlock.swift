@@ -1,8 +1,9 @@
 import StoreKit
 import SwiftUI
 
-/// "Unlock all games": one payment through the App Store (StoreKit 2) that opens Maze, Switch and
-/// Hue with every level. Bounce is always free. In TestFlight the purchase happens in Apple's
+/// "Unlock everything": one payment through the App Store (StoreKit 2). Every game can be played
+/// without it; it opens Maze and Hue past level 2, every look (one, picked at the start, is free),
+/// and keeps your best scores in Bounce and Switch. In TestFlight the purchase happens in Apple's
 /// sandbox, so nothing is charged.
 ///
 /// For trying it out, Settings has two switches: Apply paywall (off = everything open, as if bought)
@@ -12,6 +13,8 @@ import SwiftUI
 final class Unlock {
     static let shared = Unlock()
     static let productID = "com.ralphgeb.bounce.unlock"
+    /// Maze and Hue levels you can play without unlocking.
+    static let freeLevels = 2
     static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 
     private let defaults = UserDefaults.standard
@@ -136,18 +139,19 @@ struct UnlockSheet: View {
     private var offer: some View {
         VStack(spacing: 22) {
             VStack(spacing: 6) {
-                Text("Unlock every game")
+                Text("Unlock everything")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(colors.ink)
-                Text("One payment, yours for good.\nBounce is always free.")
+                Text("One payment, yours for good.")
                     .font(.system(size: 14))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(colors.ink.opacity(0.55))
             }
             VStack(alignment: .leading, spacing: 14) {
                 perk(StarShape().fill(colors.accent).frame(width: 14, height: 14), "Maze", "All 20 levels in the dark")
-                perk(diamond, "Switch", "Mono and Colour, every power")
                 perk(hue, "Hue", "All 50 colour puzzles")
+                perk(Rectangle().fill(colors.accent).frame(width: 12, height: 12), "Best scores", "Kept in Bounce and Switch")
+                perk(looks, "Every look", "All five colour themes and their icons")
             }
             VStack(spacing: 10) {
                 Button {
@@ -182,16 +186,18 @@ struct UnlockSheet: View {
                 Rectangle().fill(colors.accent).frame(width: 44, height: 44)
                 Image(systemName: "checkmark").font(.system(size: 20, weight: .bold)).foregroundStyle(colors.background)
             }
-            Text("Every game is open").font(.system(size: 22, weight: .semibold)).foregroundStyle(colors.ink)
-            Text("Maze, Switch and Hue, with every level.").font(.system(size: 14)).foregroundStyle(colors.ink.opacity(0.55))
+            Text("Everything is open").font(.system(size: 22, weight: .semibold)).foregroundStyle(colors.ink)
+            Text("Every level, every look, and your best scores kept.").font(.system(size: 14)).foregroundStyle(colors.ink.opacity(0.55))
             OutlineButton(title: "Play", colors: colors) { dismiss() }
                 .padding(.top, 10)
         }
         .padding(.vertical, 10)
     }
 
-    private var diamond: some View {
-        Rectangle().fill(colors.accent).frame(width: 10, height: 10).rotationEffect(.degrees(45))
+    private var looks: some View {
+        HStack(spacing: 2) {
+            ForEach(Look.all.prefix(3)) { l in Rectangle().fill(l.accent.color).frame(width: 5, height: 12) }
+        }
     }
 
     private var hue: some View {

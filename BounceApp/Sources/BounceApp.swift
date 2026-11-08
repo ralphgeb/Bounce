@@ -6,8 +6,16 @@ struct BounceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .preferredColorScheme(settings.mode.colorScheme)
+            Group {
+                if settings.onboarded {
+                    RootView()
+                } else {
+                    // First launch: the Bricks welcome, then your free look.
+                    WelcomeView { }
+                }
+            }
+            .animation(.easeInOut(duration: 0.4), value: settings.onboarded)
+            .preferredColorScheme(settings.mode.colorScheme)
         }
     }
 }
