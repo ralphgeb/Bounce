@@ -62,8 +62,8 @@ extension RGB {
 /// One Hue level: four corner colours the board blends between, how close together they are,
 /// which squares are fixed in place (marked with a dot), and how many are shuffled.
 struct HueLevel {
-    enum Corner { case light, dark, accent, second, accentSoft, secondDeep }
-    enum Fixed { case border, alternate, cross, anchors, corners }
+    enum Corner { case light, dark, accent, second, accentSoft, secondDeep, accentDeep }
+    enum Fixed { case border, alternate, cross, anchors, corners, ends }
 
     let corners: [Corner]          // top left, top right, bottom left, bottom right
     let contrast: Double           // 1 = full; lower pulls the corners together (harder)
@@ -75,6 +75,12 @@ struct HueLevel {
 
 enum HueLevels {
     static let count = 50
+
+    /// The tutorial: one row of five shades of the accent, the two ends fixed.
+    static let tutorial = HueLevel(corners: [.accentSoft, .accentDeep, .accentSoft, .accentDeep], contrast: 1,
+                                   fixed: .ends, shuffled: nil, cols: 5, rows: 1)
+    /// Its starting order: the middle three out of place, two swaps to fix.
+    static let tutorialOrder = [0, 2, 3, 1, 4]
 
     /// Easy to hard, gently. The first levels are small and bright, with the whole border fixed and
     /// only a few squares out of place. Difficulty climbs until about level 25 and then levels off: after
@@ -120,6 +126,7 @@ enum HueLevels {
             case .second: return b
             case .accentSoft: return HueColor.mix(a, white, 0.55)
             case .secondDeep: return HueColor.mix(b, black, 0.45)
+            case .accentDeep: return HueColor.mix(a, black, 0.5)
             }
         }
         let cols = level.cols, rows = level.rows
@@ -130,7 +137,7 @@ enum HueLevels {
         var out: [RGB] = []
         for y in 0..<rows {
             for x in 0..<cols {
-                let u = Double(x) / Double(cols - 1), v = Double(y) / Double(rows - 1)
+                let u = cols > 1 ? Double(x) / Double(cols - 1) : 0, v = rows > 1 ? Double(y) / Double(rows - 1) : 0
                 let top = HueColor.mix(cs[0], cs[1], u), bottom = HueColor.mix(cs[2], cs[3], u)
                 out.append(HueColor.rgb(HueColor.mix(top, bottom, v)))
             }
@@ -149,6 +156,7 @@ enum HueLevels {
         case .cross: return corner || (x == cols / 2 && (y == 0 || y == rows - 1)) || (y == rows / 2 && (x == 0 || x == cols - 1)) || (x == cols / 2 && y == rows / 2)
         case .anchors: return corner || ((x == 2 || x == 4) && (y == 2 || y == 5))
         case .corners: return corner
+        case .ends: return x == 0 || x == cols - 1
         }
     }
 

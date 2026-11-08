@@ -17,9 +17,15 @@ struct MazeView: View {
                 let near = size.width / 7
                 let far = min(size.width / CGFloat(m.width + 2), (size.height - 160) / CGFloat(m.height + 2))
                 let z = CGFloat(game.map)
-                let tile = near + (far - near) * z
+                var tile = near + (far - near) * z
                 let middle = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 + 1.2)
-                let camera = CGPoint(x: game.pos.x + (middle.x - game.pos.x) * z, y: game.pos.y + (middle.y - game.pos.y) * z)
+                var camera = CGPoint(x: game.pos.x + (middle.x - game.pos.x) * z, y: game.pos.y + (middle.y - game.pos.y) * z)
+                if game.inTutorial {
+                    // The tutorial's maze stays still, fitted to the width and set low, so the
+                    // instructions above never cover it.
+                    tile = size.width / CGFloat(m.width + 1) * (1 - 0.35 * z)
+                    camera = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 - 1.6)
+                }
                 var scene = MazeRenderer.Scene(
                     maze: m, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
                     range: game.range, tile: tile,

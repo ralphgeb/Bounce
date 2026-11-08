@@ -23,6 +23,8 @@ final class HueGame {
     var chosen = 1
     /// Set when a locked level is wanted: offer Unlock everything.
     var askUnlock = false
+    /// Playing the tutorial's one-row board (the first time only).
+    private(set) var inTutorial = false
 
     @ObservationIgnored private(set) var colors: [RGB] = []
     @ObservationIgnored private(set) var order: [Int] = []      // order[place] = tile id there
@@ -65,7 +67,9 @@ final class HueGame {
     func start(_ n: Int? = nil) {
         number = max(1, min(Unlock.shared.isUnlocked ? HueLevels.count : Unlock.freeLevels, n ?? chosen))
         chosen = number
-        level = HueLevels.all[number - 1]
+        // The first time, a one-row tutorial board comes before the real level.
+        inTutorial = !Coach.seen("hue")
+        level = inTutorial ? HueLevels.tutorial : HueLevels.all[number - 1]
         let s = Settings.shared
         colors = HueLevels.colors(level, accent: s.look.accent, second: s.secondAccent)
         order = Array(0..<(cols * rows))
@@ -92,16 +96,22 @@ final class HueGame {
     }
 
     private func shuffleIn() {
-        order = HueLevels.shuffle(level, number: number)
+        order = inTutorial ? HueLevels.tutorialOrder : HueLevels.shuffle(level, number: number)
         phase = .playing
         Haptics.tap(.medium)
         coach.begin("hue", steps: [
-            .init(text: "The colours were in order a moment ago.\nThey blend smoothly from corner to corner.\nSquares with a dot never move.",
+            .init(text: "Put the colours back in order.\nThey run smoothly from one end to the other.\nSquares with a dot never move.",
                   waitFor: .tapToContinue, picture: .hueFixed),
             .init(text: "Drag the outlined square\nonto the other one to swap them.", waitFor: .swap),
-            .init(text: "Or tap one square, then another.\nTry it.", waitFor: .swap),
-            .init(text: "Keep swapping until every colour\nis back in its place.", waitFor: .tapToContinue),
-        ])
+            .init(text: "One more.\nYou can also tap one square, then the other.", waitFor: .swap),
+            .init(text: "That's it.\nEach level is a bigger board.", waitFor: .tapToContinue),
+        ], onFinish: { [weak self] in self?.endTutorial() })
+    }
+
+    /// Tutorial done (or skipped): on to the real level.
+    private func endTutorial() {
+        guard inTutorial else { return }
+        start(chosen)
     }
 
     // MARK: Swapping
@@ -153,6 +163,7 @@ final class HueGame {
     private func solved() {
         phase = .solved
         solvedAge = 0
+        if inTutorial { Haptics.notify(.success); return }
         let s = Settings.shared
         let key = String(number)
         if swaps < (s.hueBest[key] ?? .max) { s.hueBest[key] = swaps; newBest = true }

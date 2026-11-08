@@ -484,7 +484,40 @@ final class SwitchGame {
                 write -= 1
             }
         }
+        // In the tutorial everything still falls, but nothing lines up by itself: only your move clears.
+        if tutorial != nil { defuse() }
         step = .falling
+    }
+
+    /// Would this colour at (x, y) make three in a line with its neighbours?
+    private func makesLine(_ s: Int, _ x: Int, _ y: Int) -> Bool {
+        func at(_ x: Int, _ y: Int) -> Int? {
+            guard x >= 0, y >= 0, x < cols, y < rows else { return nil }
+            return grid[idx(x, y)]?.shade
+        }
+        if at(x - 1, y) == s && at(x + 1, y) == s { return true }
+        if at(x - 1, y) == s && at(x - 2, y) == s { return true }
+        if at(x + 1, y) == s && at(x + 2, y) == s { return true }
+        if at(x, y - 1) == s && at(x, y + 1) == s { return true }
+        if at(x, y - 1) == s && at(x, y - 2) == s { return true }
+        if at(x, y + 1) == s && at(x, y + 2) == s { return true }
+        return false
+    }
+
+    /// Changes the colour of squares (newest first, never the accent ones the lesson is about) until
+    /// no line is made, so a fall never sets off a chain.
+    private func defuse() {
+        for _ in 0..<60 {
+            let found = currentRuns()
+            guard let run = found.first else { return }
+            let pick = run.cells
+                .filter { grid[$0]?.shade != shades - 1 && grid[$0]?.power == nil }
+                .max { (grid[$0]?.id ?? 0) < (grid[$1]?.id ?? 0) } ?? run.cells[0]
+            let x = pick % cols, y = pick / cols
+            var options: [Int] = []
+            for s in 0..<(shades - 1) where s != grid[pick]?.shade && !makesLine(s, x, y) { options.append(s) }
+            grid[pick]?.shade = options.randomElement() ?? (grid[pick]!.shade + 1) % (shades - 1)
+        }
     }
 
     private func settled() {
@@ -586,12 +619,8 @@ final class SwitchGame {
             let left = t - dt
             if left > 0 {
                 step = .clearing(left)
-            } else if tutorial != nil {
-                // In the tutorial nothing falls in afterwards, so only your lines ever clear.
-                step = .idle
-                slowClear = false
-                if awaiting { awaiting = false; stageDone() }
             } else {
+                slowClear = false
                 collapse()
             }
         case let .showing(t, o):

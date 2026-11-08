@@ -37,6 +37,30 @@ struct Maze {
     /// One number per tile, for sets and dictionaries (works outside the grid too).
     static func key(_ x: Int, _ y: Int) -> Int { (y + 16) * 20_000 + (x + 16) }
 
+    /// The tutorial's maze: one corridor to slide left and right along, then up and right to the star.
+    ///
+    ///     ###########
+    ///     ###########
+    ///     #######..*#
+    ///     #######.###
+    ///     #...S...###
+    ///     ###########
+    static func tutorial() -> Maze {
+        let rows = ["###########",
+                    "###########",
+                    "#######...#",
+                    "#######.###",
+                    "#.......###",
+                    "###########"]
+        var m = Maze(width: rows[0].count, height: rows.count)
+        for (y, line) in rows.enumerated() {
+            for (x, ch) in line.enumerated() where ch != "#" { m.wall[y * m.width + x] = false }
+        }
+        m.start = (4, 4)
+        m.goal = (9, 2)
+        return m
+    }
+
     /// How many levels there are.
     static let levels = 20
 

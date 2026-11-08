@@ -10,7 +10,7 @@ final class Coach {
         case tapToContinue
         case swipeLeft, swipeRight, swipeAny
         case tap, dropDot, pickDot, hold
-        case drag, launch, swap
+        case drag, launch, swap, goal
     }
 
     enum Gesture { case none, swipeLeft, swipeRight, swipeAny, tap, hold, pinch, dragSideways, swapRight }
@@ -73,6 +73,9 @@ final class Coach {
         onFinish?()
         onFinish = nil
     }
+
+    /// Has this game's tutorial been seen (or skipped)?
+    static func seen(_ game: String) -> Bool { UserDefaults.standard.bool(forKey: "tutorial.\(game)") }
 
     /// Settings › Show tutorials again.
     static func resetAll() {

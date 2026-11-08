@@ -1,7 +1,7 @@
 # Bricks
 
 **Bricks**: minimal games for iPhone, in the same style as Halo and Scout: the same looks, type and quiet interface.
-On first launch a short welcome shows BRICKS with its squares dropping into place and the four games, then you choose your look (that one is yours for free). After that the app opens on a menu of four games, one section each, split by thin lines:
+On first launch a short welcome shows BRICKS with its squares dropping into place, a line under it and the four games in a row, then you choose your look from six (a strip of squares above shows its colours; that one is yours for free) and Automatic, Light or Dark. After that the app opens on a menu of four games, one section each, split by thin lines:
 
 - **Bounce**: a block breaker with an endless wall.
 - **Maze**: find your way through 20 ever bigger mazes in pitch black, by the light you give off.
@@ -12,7 +12,7 @@ On the menu, drag in a game's section and its logo stretches after your finger a
 
 **Unlock everything** (£1.99, once): every game can be played without it. It opens Maze and Hue past level 2, every look (the one picked at the start is free; the others show a padlock in Settings), and keeps your best scores in Bounce and Switch (without it, you see your score but your best isn't saved). Tapping a locked level or look (or Settings › Unlock everything) opens the unlock sheet, which uses Apple's own payment sheet (StoreKit 2) and has Restore purchases. In TestFlight it's Apple's sandbox, so nothing is charged. For trying it out, Settings › Unlock has **Apply paywall** (off = everything open) and **Reset purchase** (locks it all again on this iPhone until you buy or restore again). The product is created in App Store Connect by `.github/workflows/bounce-unlock-setup.yml`; Apple's Paid Applications Agreement must be signed in App Store Connect › Business.
 
-**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small, see-through centred panel (at the top, or low for Bounce) and leave the game playable, with Skip at the bottom of the screen; pausing puts Carry on above the tutorial; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Switch's and Hue's tutorials are played on the board: the squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again (above the records) brings them back. In Maze's tutorial, while it asks you to drop or pick up a dot, sliding two moves away fades the screen and brings you back to the spot.
+**Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small, see-through centred panel (at the top, or low for Bounce) and leave the game playable, with Skip at the bottom of the screen; pausing puts Carry on above the tutorial; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Each tutorial is played on its own small board so the instructions above never cover it: Maze has a tutorial maze (a corridor to slide along, a dot to drop, move away from and come back to pick up, the map, then up and right to the star) before level 1; Switch plays seven guided moves where everything falls after each clear but nothing chains; Hue starts with one row of five shades to put back in order with two swaps. The squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again (above the records) brings them back. In Maze's tutorial, while it asks you to drop or pick up a dot, sliding two moves away fades the screen and brings you back to the spot.
 
 ## Maze
 
@@ -55,7 +55,7 @@ On the menu, drag in a game's section and its logo stretches after your finger a
 - **Lives**: three to start. You lose one when your last ball falls, or when the wall reaches the line above your paddle (that also knocks the bottom three rows away).
 - **Landing page** (with a back arrow to the menu): six squares over B O U N C E (the accent over the O), the four special squares and what they do, and Start low on the screen. After a game it shows your score, time and best, and Again.
 - **Paddle**: sits well above the bottom of the screen, leaving room for your thumb under it.
-- **Settings** (the half circle at the top right of the menu): Automatic, Light or Dark at the top; five looks (Graphite, Ocean, Sky, Blush, Forest), each a small 3 x 3 grid blending from its accent to its main colour, with its name (one free, the others with Unlock everything); the app icon can follow the look (off at first); haptics; your best score and longest game.
+- **Settings** (the half circle at the top right of the menu): Automatic, Light or Dark at the top; six looks (Graphite, Ocean, Sky, Blush, Dusk, Forest), each a small 3 x 3 grid blending from its accent to its main colour, with its name (one free, the others with Unlock everything); the app icon can follow the look (off at first); haptics; your best score and longest game.
 - **App icon**: one square in the accent colour in the centre of the look's background, a touch lighter at the top, with a soft shadow under it. `BounceApp/tools/make_icon.py` draws them.
 
 SwiftUI, iOS 17+, no third-party libraries, nothing collected.

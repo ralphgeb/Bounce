@@ -151,7 +151,7 @@ struct UnlockSheet: View {
                 perk(StarShape().fill(colors.accent).frame(width: 14, height: 14), "Maze", "All 20 levels in the dark")
                 perk(hue, "Hue", "All 50 colour puzzles")
                 perk(Rectangle().fill(colors.accent).frame(width: 12, height: 12), "Best scores", "Kept in Bounce and Switch")
-                perk(looks, "Every look", "All five colour themes and their icons")
+                perk(looks, "Every look", "All six colour themes and their icons")
             }
             VStack(spacing: 10) {
                 Button {

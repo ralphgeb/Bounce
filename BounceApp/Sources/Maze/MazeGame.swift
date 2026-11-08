@@ -37,6 +37,8 @@ final class MazeGame {
     var chosen = 1
     /// Set when a run reaches a locked level: the landing page then offers Unlock everything.
     var askUnlock = false
+    /// Playing the tutorial's own small maze (the first time only).
+    private(set) var inTutorial = false
     private(set) var dotsLeft = 10
     /// The last dots you were given, and when (for the little animation).
     private(set) var dotGain = 0
@@ -103,18 +105,40 @@ final class MazeGame {
         newRecord = false
         // 10 dots on level 1, and the 3 a level you'd have earned getting this far.
         dotsLeft = 3 * (level - 1)
-        load(level)
+        // The first time, a small tutorial maze comes before the real level.
+        inTutorial = !Coach.seen("maze")
+        if inTutorial { loadTutorial() } else { load(level) }
         phase = .playing
         ticker.start()
-        show("Level \(level)")
+        if !inTutorial { show("Level \(level)") }
         coach.begin("maze", steps: [
             .init(text: "Swipe left.\nYou slide until a wall or a turning.", waitFor: .swipeLeft, gesture: .swipeLeft),
             .init(text: "Now swipe right.", waitFor: .swipeRight, gesture: .swipeRight),
             .init(text: "Tap to drop a dot here,\nso you know you've been here.", waitFor: .dropDot, gesture: .tap),
-            .init(text: "Tap again to pick it up.\nDots are few: reuse them.", waitFor: .pickDot, gesture: .tap),
-            .init(text: "Pinch to zoom out.\nYou'll see your dots and where you are.\nLet go to come back.", waitFor: .hold, gesture: .pinch),
-            .init(text: "Find the glowing star\nto go one level deeper.\nThere are 20 levels.", waitFor: .tapToContinue, picture: .mazeGlow),
-        ])
+            .init(text: "Swipe left to move away,\nthen right to come back.\nTap to pick the dot up.", waitFor: .pickDot),
+            .init(text: "Pinch to zoom out and see the map.\nLet go to come back.", waitFor: .hold, gesture: .pinch),
+            .init(text: "Swipe up, then right,\nto reach the star.", waitFor: .goal),
+            .init(text: "That's the game.\nFind the star in every level.\nEach one is bigger. There are 20.", waitFor: .tapToContinue, picture: .mazeGlow),
+        ], onFinish: { [weak self] in self?.endTutorial() })
+    }
+
+    /// The tutorial's own maze: a corridor, a turn up and the star. Three dots to practise with.
+    private func loadTutorial() {
+        maze = Maze.tutorial()
+        resetBoard()
+        reveals = []
+        dotsLeft = 0
+        giveDots(3)
+    }
+
+    /// Tutorial done (or skipped): on to the real level.
+    private func endTutorial() {
+        guard inTutorial else { return }
+        inTutorial = false
+        dotsLeft = 3 * (level - 1)
+        load(level)
+        phase = .playing
+        show("Level \(level)")
     }
 
     func pause() { if phase == .playing { phase = .paused } }
@@ -129,6 +153,13 @@ final class MazeGame {
 
     private func load(_ l: Int) {
         maze = Maze.generate(level: l)
+        resetBoard()
+        placeReveals(l)
+        // 10 dots on level 1; each new level adds 3 to what you have left.
+        giveDots(l == 1 ? firstDots : dotsPerLevel)
+    }
+
+    private func resetBoard() {
         tile = maze.start
         pos = center(tile)
         target = nil; moving = nil; queued = nil
@@ -136,10 +167,8 @@ final class MazeGame {
         dots = []
         seen = []
         revealLeft = 0
-        placeReveals(l)
         map = 0; mapTarget = 0
-        // 10 dots on level 1; each new level adds 3 to what you have left.
-        giveDots(l == 1 ? firstDots : dotsPerLevel)
+        anchor = nil; awayMoves = 0
         levelTime = 0
         relight()
         frame &+= 1
@@ -270,6 +299,13 @@ final class MazeGame {
     }
 
     private func cleared() {
+        // The tutorial's star: well done; the last card, then the real level.
+        if inTutorial {
+            flash = 1
+            Haptics.notify(.success)
+            coach.did(.goal)
+            return
+        }
         phase = .cleared
         flash = 1
         Haptics.notify(.success)
