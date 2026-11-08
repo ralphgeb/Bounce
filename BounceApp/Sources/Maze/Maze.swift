@@ -78,7 +78,10 @@ struct Maze {
     /// out is nearest a walk that grows with the level.
     static func generate(level: Int) -> Maze {
         let (cw, ch) = size(level)
-        let target = Int(Double(2 * cw * ch) * (0.22 + 0.012 * Double(min(level, 20)) + 0.004 * Double(max(0, level - 20))))
+        let early: Double = 0.012 * Double(min(level, 20))
+        let late: Double = 0.004 * Double(max(0, level - 20))
+        let share: Double = 0.22 + early + late
+        let target = Int(Double(2 * cw * ch) * share)
         var best: (maze: Maze, steps: Int)?
         for attempt in 0..<12 {
             let m = build(level: level, attempt: attempt)
