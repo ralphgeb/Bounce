@@ -153,11 +153,6 @@ final class Settings {
         return Look.all[(i + 2) % Look.all.count].accent
     }
 
-    /// Maze is always played in the dark: the look's dark colours.
-    var darkColors: Colors {
-        Colors(ink: look.dark.ink.color, background: look.dark.background.color, accent: look.accent.color)
-    }
-
     func colors(_ scheme: ColorScheme) -> Colors {
         let p = scheme == .dark ? look.dark : look.light
         return Colors(ink: p.ink.color, background: p.background.color, accent: look.accent.color)

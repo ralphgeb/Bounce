@@ -224,18 +224,3 @@ private struct UnlockHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
-
-/// The padlock on a locked game: in the main colour, over a light veil.
-struct LockBadge: View {
-    let colors: Colors
-    var body: some View {
-        ZStack {
-            Rectangle().fill(colors.background).frame(width: 40, height: 40)
-                .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.2), lineWidth: 1))
-            Image(systemName: "lock.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(colors.ink.opacity(0.8))
-        }
-        .accessibilityLabel("Locked")
-    }
-}

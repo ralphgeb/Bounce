@@ -18,7 +18,6 @@ enum MazeRenderer {
         var time: Double = 0
         var showGoal = true
         var showPlayer = true
-        var revealWalls = false
         var lightStrength: Double = 1
         /// The map: 0 = normal, 1 = zoomed out over the whole maze. Still dark: only your light
         /// and your dots show, so you can see where the dots are compared to you.
@@ -55,13 +54,6 @@ enum MazeRenderer {
         // At the start of each level you appear: the light comes up over the first second.
         let appear = s.dotGain > 0 ? min(1, s.dotGainAge / 0.9) : 1
         let k = s.lightStrength * (1 - pow(1 - appear, 2))
-
-        // Settings › Maze › Show the walls: every wall, very faintly.
-        if s.revealWalls {
-            var all = Path()
-            for y in y0...y1 { for x in x0...x1 where s.maze.isWall(x, y) { all.addRect(tileRect(x, y)) } }
-            ctx.fill(all, with: .color(c.ink.opacity(0.09)))
-        }
 
         // A map square found: every wall shows for a moment.
         if s.revealAll > 0.01 {

@@ -1,6 +1,14 @@
 """Synthesises Bricks' sounds into BounceApp/Sources/Sounds/*.wav. No samples: every sound is made here.
 
-A calm, meditative palette, kept quiet and soft:
+A calm, meditative palette of soft thuds rather than chimes, kept quiet:
+  - pitched "thocks" (a felt-damped wood block: a short warm knock with a pitch that falls quickly),
+    tuned to A minor pentatonic so a run of them makes a gentle little melody;
+  - warm, deeper thuds for moments (stars, power-ups, the end of a level);
+  - a dull, hollow key click (like a keyboard's delete key) for the menu, and a short rubbery thup
+    when a stretched logo springs back;
+  - breaths of air for movement, water drops for the dots, a deep felt thump for big clears;
+and a little room around everything so nothing sounds dry. (Earlier palette notes kept below.)
+
   - kalimba-like notes (a thumb piano: a warm tone with a faint metallic overtone that fades fast),
     tuned to A minor pentatonic so anything that overlaps sits well;
   - singing bowls (inharmonic partials, each a pair of slightly detuned tones that beat slowly,
@@ -155,6 +163,43 @@ def pad(freqs, d=3.0, attack=0.6):
     return soft(y, 2500, 1) * shape + 0.25 * breath(d, 300, 900) * 0.6
 
 
+def thock(f, d=0.22, decay=24, noise=0.55):
+    """A soft knock with a little pitch: like a felt-damped wood block."""
+    x = t(d)
+    fr = f * (1 + 0.7 * np.exp(-x * 70))
+    phase = 2 * np.pi * np.cumsum(fr) / SR
+    tone = np.sin(phase) * env(len(x), 0.0012, decay)
+    under = 0.45 * np.sin(phase / 2) * env(len(x), 0.002, decay * 1.2)
+    knock = noise * soft(rng.standard_normal(len(x)), 2200, 2) * env(len(x), 0.0005, 260)
+    return tone + under + knock
+
+
+def key_click(f=430, d=0.1):
+    """A dull, hollow key click, like a keyboard's delete key."""
+    x = t(d)
+    body = np.sin(2 * np.pi * f * x) * env(len(x), 0.0006, 55)
+    hollow = 0.5 * np.sin(2 * np.pi * f * 2.4 * x) * env(len(x), 0.0004, 120)
+    snap = 0.8 * soft(rng.standard_normal(len(x)), 3500, 1) * env(len(x), 0.0003, 600)
+    return body + hollow + snap
+
+
+def rubber(d=0.2):
+    """A short rubbery thup: a low knock that wobbles for a moment."""
+    x = t(d)
+    fr = 150 * (1 + 0.25 * np.sin(2 * np.pi * 26 * x) * np.exp(-x * 30)) * (1 + 0.4 * np.exp(-x * 50))
+    body = np.sin(2 * np.pi * np.cumsum(fr) / SR) * env(len(x), 0.003, 22)
+    return body + 0.3 * soft(rng.standard_normal(len(x)), 900, 2) * env(len(x), 0.001, 150)
+
+
+def warm(f, d=0.9):
+    """A warm, deeper thud with just a breath of tone after it: for moments."""
+    x = t(d)
+    fr = f * (1 + 0.5 * np.exp(-x * 40))
+    phase = 2 * np.pi * np.cumsum(fr) / SR
+    body = np.sin(phase) * env(len(x), 0.002, 9) + 0.35 * np.sin(phase * 2.01) * env(len(x), 0.002, 16)
+    return body + 0.5 * soft(rng.standard_normal(len(x)), 1200, 2) * env(len(x), 0.001, 90)
+
+
 def mix(*parts):
     """Adds sounds of different lengths."""
     n = max(len(p) for p in parts)
@@ -175,43 +220,43 @@ def seq(items, gap, total):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    # Notes: kalimba across the scale; bowls an octave up for moments.
+    # Notes: soft pitched thocks across the scale (an octave down: warmer); and warm thuds for moments.
     for i, f in enumerate(SCALE):
-        save(f"note{i:02d}", kalimba(f), 0.30)
-        save(f"bell{i:02d}", bowl(f * 1.5), 0.24, reverb=0.32)
+        save(f"note{i:02d}", thock(f), 0.32, reverb=0.14)
+        save(f"bell{i:02d}", warm(f * 0.75), 0.3, reverb=0.2)
 
-    # Interface: soft wooden clicks, nothing that rings.
-    save("tap", wood(1100), 0.16, reverb=0.12)
-    save("back", wood(760), 0.15, reverb=0.12)
-    save("open", mix(wood(620, 0.1), 0.6 * wood(930, 0.1)), 0.17, reverb=0.15)
-    save("tick", wood(1500, 0.05), 0.12, reverb=0.1)
-    save("toggle", wood(1250, 0.06), 0.13, reverb=0.1)
-    save("spring", drop(260, 360, 0.28), 0.12, reverb=0.15)
+    # Interface: key clicks and knocks, nothing that rings.
+    save("tap", key_click(560, 0.08), 0.15, reverb=0.08)
+    save("back", key_click(380, 0.09), 0.15, reverb=0.08)
+    save("open", key_click(330, 0.11), 0.2, reverb=0.1)        # opening a game: the delete-key click
+    save("tick", key_click(700, 0.06), 0.11, reverb=0.06)
+    save("toggle", key_click(520, 0.07), 0.13, reverb=0.06)
+    save("spring", rubber(), 0.17, reverb=0.08)                 # a stretched logo springs back
 
-    # Movement: breaths of air.
-    save("swish", breath(0.24, 380, 1100), 0.13, reverb=0.15)
-    save("swish_long", breath(0.36, 320, 1300), 0.15, reverb=0.18)
-    save("swish_soft", breath(0.2, 500, 1000, rise=False), 0.12, reverb=0.12)
-    save("whoosh", breath(0.7, 220, 900), 0.18, reverb=0.25)
+    # Movement: breaths of air (quiet).
+    save("swish", breath(0.22, 360, 1000), 0.11, reverb=0.1)
+    save("swish_long", breath(0.34, 300, 1150), 0.13, reverb=0.12)
+    save("swish_soft", breath(0.18, 480, 950, rise=False), 0.1, reverb=0.08)
+    save("whoosh", breath(0.6, 200, 800), 0.15, reverb=0.18)
 
     # Touch and drops
-    save("plip", drop(1250, 620), 0.2)
-    save("plop", drop(520, 980, 0.28), 0.18)
-    save("glass", mix(wood(1400, 0.07), 0.4 * drop(1800, 1500, 0.12)), 0.13, reverb=0.15)
-    save("bump", thump(120, 0.22), 0.16, reverb=0.1)
-    save("thud", thump(90, 0.35), 0.2, reverb=0.12)
-    save("boom", mix(thump(55, 1.4), 0.3 * breath(1.4, 120, 400)), 0.3, reverb=0.35)
+    save("plip", drop(820, 420, 0.24), 0.18, reverb=0.16)        # a dot dropped
+    save("plop", drop(380, 700, 0.22), 0.16, reverb=0.16)        # a dot picked up
+    save("glass", thock(880, 0.14, 40), 0.12, reverb=0.1)        # hint
+    save("bump", thump(120, 0.2), 0.15, reverb=0.06)
+    save("thud", thump(90, 0.3), 0.2, reverb=0.08)
+    save("boom", mix(thump(55, 1.2), 0.3 * breath(1.2, 120, 380)), 0.3, reverb=0.25)
 
-    # Moments
-    save("reveal", pad([220, 329.63, 440, 493.88, 659.25], 3.0), 0.2, reverb=0.4)
-    save("twinkle", seq([kalimba(SCALE[8] * 2, 0.6), kalimba(SCALE[9] * 2, 0.6), kalimba(SCALE[10] * 2, 0.8)], 0.07, 1.2), 0.12)
-    save("power", bowl(SCALE[7] * 1.5, 2.2, 0.6), 0.2, reverb=0.35)
-    save("clear", breath(0.45, 300, 1500, grain=0.15), 0.18, reverb=0.25)
-    save("life", seq([kalimba(SCALE[i]) for i in (5, 7, 9, 10)], 0.11, 1.8), 0.24)
-    save("lose", seq([kalimba(SCALE[4], 1.3), kalimba(SCALE[1], 1.6)], 0.22, 2.0), 0.22)
-    save("over", seq([kalimba(SCALE[i], 1.6) for i in (5, 3, 1, 0)], 0.26, 2.8), 0.24)
-    save("win", seq([bowl(SCALE[5] * 1.5, 3.5)] + [kalimba(SCALE[i] * 2, 0.9) for i in (5, 7, 8)], 0.16, 3.6), 0.24, reverb=0.35)
-    save("star", bowl(SCALE[8], 2.4), 0.2, reverb=0.35)
+    # Moments: thuds, not chimes.
+    save("reveal", mix(warm(110, 1.2), 0.5 * breath(1.6, 200, 700)), 0.2, reverb=0.3)
+    save("twinkle", seq([thock(SCALE[i] * 2, 0.16, 34) for i in (6, 8, 10)], 0.07, 0.6), 0.1, reverb=0.12)
+    save("power", seq([warm(SCALE[2] * 0.75, 0.6), thock(SCALE[7], 0.25)], 0.06, 0.9), 0.22, reverb=0.2)
+    save("clear", mix(breath(0.4, 260, 1100), 0.5 * thump(80, 0.3)), 0.18, reverb=0.18)
+    save("life", seq([thock(SCALE[i]) for i in (5, 7, 9, 10)], 0.1, 0.9), 0.24, reverb=0.16)
+    save("lose", seq([thock(SCALE[4], 0.4, 14), thock(SCALE[1], 0.6, 10)], 0.2, 1.1), 0.22, reverb=0.18)
+    save("over", seq([thock(SCALE[i], 0.5, 11) for i in (5, 3, 1, 0)], 0.24, 1.8), 0.24, reverb=0.2)
+    save("win", seq([warm(110, 1.2)] + [thock(SCALE[i]) for i in (5, 7, 8, 10)], 0.12, 1.6), 0.24, reverb=0.25)
+    save("star", warm(SCALE[5] * 0.5, 0.9), 0.22, reverb=0.2)
     print("sounds written to", os.path.abspath(OUT))
 
 

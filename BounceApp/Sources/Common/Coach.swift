@@ -369,13 +369,6 @@ private struct CoachPicture: View {
             }
         }
     }
-
-    private func arrow(_ ctx: inout GraphicsContext, from a: CGFloat, to b: CGFloat, y: CGFloat) {
-        var p = Path()
-        p.move(to: CGPoint(x: a, y: y)); p.addLine(to: CGPoint(x: b, y: y))
-        p.move(to: CGPoint(x: b - 6, y: y - 5)); p.addLine(to: CGPoint(x: b, y: y)); p.addLine(to: CGPoint(x: b - 6, y: y + 5))
-        ctx.stroke(p, with: .color(colors.accent), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-    }
 }
 
 /// The way out of a maze: a four-pointed star.

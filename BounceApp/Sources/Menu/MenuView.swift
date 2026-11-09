@@ -15,8 +15,6 @@ struct MenuView: View {
     @State private var pressed: Int?
     @State private var travelled: CGFloat = 0
     @State private var appeared = false
-    @State private var unlock = Unlock.shared
-    @State private var showUnlock = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -56,7 +54,6 @@ struct MenuView: View {
                     record: s.hueSolved > 0 ? "\(s.hueSolved)/\(HueLevels.count)" : nil)
         }
         .padding(.bottom, 6)
-        .sheet(isPresented: $showUnlock) { UnlockSheet(colors: colors) }
         .onAppear {
             appeared = false
             withAnimation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8)) { appeared = true }
