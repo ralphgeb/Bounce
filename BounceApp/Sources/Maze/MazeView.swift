@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Playing Maze: the dark board under your finger, the level and time on top.
 struct MazeView: View {
@@ -10,36 +11,13 @@ struct MazeView: View {
     var body: some View {
         let frame = game.frame
         ZStack {
-            Canvas { ctx, size in
-                _ = frame
-                // Zoomed in: about seven tiles across. On the map, out to the whole maze.
-                let m = game.maze
-                let near = size.width / 7
-                let far = min(size.width / CGFloat(m.width + 2), (size.height - 160) / CGFloat(m.height + 2))
-                let z = CGFloat(game.map)
-                var tile = near + (far - near) * z
-                let middle = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 + 1.2)
-                var camera = CGPoint(x: game.pos.x + (middle.x - game.pos.x) * z, y: game.pos.y + (middle.y - game.pos.y) * z)
-                if game.inTutorial {
-                    // The tutorial's maze stays still, fitted to the width and set low, so the
-                    // instructions above never cover it.
-                    tile = size.width / CGFloat(m.width + 1) * (1 - 0.35 * z)
-                    camera = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 - 1.6)
+            // While a map square shows the whole maze, the board is kept out of screenshots.
+            Group {
+                if game.revealLeft > 0 {
+                    ScreenshotProof(content: board(frame))
+                } else {
+                    board(frame)
                 }
-                var scene = MazeRenderer.Scene(
-                    maze: m, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
-                    range: game.range, tile: tile,
-                    moving: game.moving, squash: game.squash, bump: game.bump, flash: game.flash,
-                    time: game.totalTime)
-                scene.map = game.map
-                scene.seen = game.seen
-                scene.camera = camera
-                scene.dotGain = game.dotGain
-                scene.dotGainAge = game.dotGainAge
-                scene.blink = game.blink
-                scene.reveals = game.reveals
-                scene.revealAll = game.revealLeft > 0 ? min(1, game.map * 1.2) : 0
-                MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
             }
             .ignoresSafeArea()
             .contentShape(Rectangle())
@@ -74,6 +52,15 @@ struct MazeView: View {
 
             VStack(spacing: 0) {
                 hud
+                    // Zoomed out, a soft fade behind the score keeps it readable over the map.
+                    .background(alignment: .top) {
+                        LinearGradient(colors: [colors.background, colors.background.opacity(0.9), colors.background.opacity(0)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: 220)
+                            .ignoresSafeArea()
+                            .opacity(game.map)
+                            .allowsHitTesting(false)
+                    }
                 Spacer()
                 if game.level == 1 && game.levelTime < 6 && !game.coach.active {
                     VStack(spacing: 8) {
@@ -116,6 +103,43 @@ struct MazeView: View {
             if game.phase == .paused { paused }
         }
         .animation(.easeOut(duration: 0.25), value: game.toastID)
+    }
+
+    /// The maze itself, drawn for this frame.
+    private func board(_ frame: Int) -> some View {
+        Canvas { ctx, size in
+            _ = frame
+            // Zoomed in: about seven tiles across. On the map, out to the whole maze.
+            let m = game.maze
+            let near = size.width / 7
+            // The map fits below the score and above the bottom edge, so nothing covers the text.
+            let far = min(size.width / CGFloat(m.width + 2), (size.height - 300) / CGFloat(m.height + 2))
+            let z = CGFloat(game.map)
+            var tile = near + (far - near) * z
+            let lift = Double(70 / max(far, 1))     // nudge the map down, clear of the score
+            let middle = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 - lift)
+            var camera = CGPoint(x: game.pos.x + (middle.x - game.pos.x) * z, y: game.pos.y + (middle.y - game.pos.y) * z)
+            if game.inTutorial {
+                // The tutorial's maze stays still, fitted to the width and set low, so the
+                // instructions above never cover it.
+                tile = size.width / CGFloat(m.width + 1) * (1 - 0.35 * z)
+                camera = CGPoint(x: Double(m.width) / 2, y: Double(m.height) / 2 - 1.6)
+            }
+            var scene = MazeRenderer.Scene(
+                maze: m, pos: game.pos, light: game.light, lit: game.lit, dots: game.dots,
+                range: game.range, tile: tile,
+                moving: game.moving, squash: game.squash, bump: game.bump, flash: game.flash,
+                time: game.totalTime)
+            scene.map = game.map
+            scene.seen = game.seen
+            scene.camera = camera
+            scene.dotGain = game.dotGain
+            scene.dotGainAge = game.dotGainAge
+            scene.blink = game.blink
+            scene.reveals = game.reveals
+            scene.revealAll = game.revealLeft > 0 ? min(1, game.map * 1.2) : 0
+            MazeRenderer.draw(&ctx, size: size, scene: scene, colors: colors)
+        }
     }
 
     private var levelDone: some View {
@@ -233,6 +257,37 @@ struct MazeView: View {
             }
         }
         .transition(.opacity)
+    }
+}
+
+/// Hides what's inside from screenshots and screen recordings (it comes out blank), using the
+/// protected layer iOS draws password fields in.
+struct ScreenshotProof<Content: View>: UIViewRepresentable {
+    let content: Content
+
+    func makeCoordinator() -> UIHostingController<Content> { UIHostingController(rootView: content) }
+
+    func makeUIView(context: Context) -> UIView {
+        let host = context.coordinator.view!
+        host.backgroundColor = .clear
+        let field = UITextField()
+        field.isSecureTextEntry = true
+        guard let secure = field.layer.sublayers?.first?.delegate as? UIView else { return host }
+        secure.subviews.forEach { $0.removeFromSuperview() }
+        secure.isUserInteractionEnabled = false
+        host.translatesAutoresizingMaskIntoConstraints = false
+        secure.addSubview(host)
+        NSLayoutConstraint.activate([
+            host.leadingAnchor.constraint(equalTo: secure.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: secure.trailingAnchor),
+            host.topAnchor.constraint(equalTo: secure.topAnchor),
+            host.bottomAnchor.constraint(equalTo: secure.bottomAnchor),
+        ])
+        return secure
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.rootView = content
     }
 }
 

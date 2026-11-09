@@ -107,22 +107,32 @@ struct HueView: View {
     }
 
     private var solvedCard: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 0) {
             Spacer()
-            HStack(spacing: 14) {
-                ForEach(0..<3, id: \.self) { i in
-                    let won = i < game.stars
-                    StarShape()
-                        .fill(won ? colors.accent : colors.ink.opacity(0.15))
-                        .frame(width: 30, height: 30)
-                        .shadow(color: won ? colors.accent.opacity(0.6) : .clear, radius: 8)
+            // The stars, big and glowing, as in Maze, on a panel of their own.
+            VStack(spacing: 16) {
+                HStack(spacing: 14) {
+                    ForEach(0..<3, id: \.self) { i in
+                        let won = i < game.stars
+                        StarShape()
+                            .fill(won ? colors.accent : colors.ink.opacity(0.15))
+                            .frame(width: 38, height: 38)
+                            .shadow(color: won ? colors.accent.opacity(0.75) : .clear, radius: 10)
+                            .scaleEffect(won ? 1 : 0.85)
+                    }
                 }
+                Text("Level \(game.number) · \(game.swaps) swaps · fewest \(game.fewestSwaps)")
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(colors.ink.opacity(0.75))
+                Text(game.stars == 3 ? "Perfect" : "Three stars: the fewest swaps")
+                    .font(.system(size: 12))
+                    .foregroundStyle(colors.ink.opacity(0.5))
             }
-            Text("Solved · \(game.swaps) swaps · fewest \(game.fewestSwaps)")
-                .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                .tracking(1.6)
-                .textCase(.uppercase)
-                .foregroundStyle(colors.ink.opacity(0.7))
+            .padding(.vertical, 24)
+            .padding(.horizontal, 26)
+            .background(colors.background.opacity(0.92))
+            .overlay(Rectangle().strokeBorder(colors.ink.opacity(0.08), lineWidth: 1))
+            .padding(.bottom, 22)
             if game.number < HueLevels.count {
                 OutlineButton(title: "Next level", colors: colors) { game.next() }
             } else {
@@ -133,7 +143,8 @@ struct HueView: View {
             Button("Levels") { game.home() }
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(colors.ink.opacity(0.5))
-                .padding(.bottom, 50)
+                .padding(.top, 12)
+                .padding(.bottom, 40)
         }
     }
 

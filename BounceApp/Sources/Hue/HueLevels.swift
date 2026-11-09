@@ -62,7 +62,7 @@ extension RGB {
 /// One Hue level: four corner colours the board blends between, how close together they are,
 /// which squares are fixed in place (marked with a dot), and how many are shuffled.
 struct HueLevel {
-    enum Corner { case light, dark, accent, second, accentSoft, secondDeep, accentDeep }
+    enum Corner { case light, dark, accent, second, accentSoft, secondDeep, accentDeep, complement, analog }
     enum Fixed { case border, alternate, cross, anchors, corners, ends }
 
     let corners: [Corner]          // top left, top right, bottom left, bottom right
@@ -82,10 +82,25 @@ enum HueLevels {
     /// Its starting order: the middle three out of place, two swaps to fix.
     static let tutorialOrder = [0, 2, 3, 1, 4]
 
-    /// Easy to hard, gently. The first levels are small and bright, with the whole border fixed and
-    /// only a few squares out of place. Difficulty climbs until about level 25 and then levels off: after
-    /// that the colours stay about as close as there, so a long run stays enjoyable.
+    /// Easy to hard, very gently: the first ten are small-to-full, colourful boards with the border
+    /// fixed and some squares out of place; the border stays fixed to level 25 and the colours only
+    /// slowly draw closer, so the game stays fun and a long run feels within reach.
     static let all: [HueLevel] = (1...count).map(make)
+
+    /// The first ten levels: four real colours each, built from the accent: its complement (across
+    /// the colour wheel) and a neighbour, with light or dark, so the boards are colourful and fun.
+    private static let firstPalettes: [[HueLevel.Corner]] = [
+        [.light, .accent, .complement, .dark],
+        [.accent, .analog, .light, .complement],
+        [.complement, .accent, .light, .analog],
+        [.light, .analog, .complement, .accent],
+        [.accent, .light, .complement, .dark],
+        [.analog, .complement, .accent, .light],
+        [.light, .complement, .accent, .analog],
+        [.accent, .second, .complement, .light],
+        [.complement, .light, .dark, .accent],
+        [.analog, .accent, .complement, .dark],
+    ]
 
     private static let palettes: [[HueLevel.Corner]] = [
         [.light, .accent, .second, .dark],
@@ -104,13 +119,16 @@ enum HueLevels {
     private static let sizes: [(Int, Int)] = [(5, 5), (6, 6), (6, 7), (7, 7)]
 
     private static func make(_ n: Int) -> HueLevel {
-        let d = min(1, Double(n - 1) / 24)                  // 0 on level 1, 1 from level 25
-        let fixed: HueLevel.Fixed = n <= 6 ? .border : n <= 14 ? .alternate : n <= 24 ? .cross : n <= 38 ? .anchors : .corners
-        let partial = [6, 10, 14, 18, 24, 30, 34]           // squares out of place on levels 1 to 7
+        // Gentle all the way: level 25 is about as hard as the old level 6, level 50 a little more.
+        let d = Double(n - 1) / Double(count - 1)
+        let fixed: HueLevel.Fixed = n <= 25 ? .border : n <= 40 ? .alternate : .cross
+        let partial = [6, 9, 12, 15, 18, 20, 22, 24, 26, 28]   // squares out of place on levels 1 to 10
         let shuffled: Int? = n <= partial.count ? partial[n - 1] : nil
         let size = n <= sizes.count ? sizes[n - 1] : (7, 8)
-        return HueLevel(corners: palettes[(n - 1) % palettes.count],
-                        contrast: 1 - 0.45 * pow(d, 1.2),   // never closer than 55%
+        let all = firstPalettes + palettes
+        let corners = n <= firstPalettes.count ? firstPalettes[n - 1] : all[(n - 1) % all.count]
+        return HueLevel(corners: corners,
+                        contrast: 1 - 0.3 * pow(d, 1.1),       // 0.85 on level 25, 0.7 on level 50
                         fixed: fixed, shuffled: shuffled, cols: size.0, rows: size.1)
     }
 
@@ -118,6 +136,11 @@ enum HueLevels {
     static func colors(_ level: HueLevel, accent: RGB, second: RGB) -> [RGB] {
         let white = HueColor.lab(RGB(0xF4F3EF)), black = HueColor.lab(RGB(0x1A1A1E))
         let a = HueColor.lab(accent), b = HueColor.lab(second)
+        /// The accent turned round the colour wheel (in OKLCh), a little softer or lighter.
+        func rotate(_ c: HueColor.Lab, by turn: Double, chroma k: Double, lightness dl: Double) -> HueColor.Lab {
+            let ch = hypot(c.a, c.b) * k, h = atan2(c.b, c.a) + turn
+            return HueColor.Lab(l: min(0.92, c.l + dl), a: ch * cos(h), b: ch * sin(h))
+        }
         func corner(_ c: HueLevel.Corner) -> HueColor.Lab {
             switch c {
             case .light: return white
@@ -127,6 +150,8 @@ enum HueLevels {
             case .accentSoft: return HueColor.mix(a, white, 0.55)
             case .secondDeep: return HueColor.mix(b, black, 0.45)
             case .accentDeep: return HueColor.mix(a, black, 0.5)
+            case .complement: return rotate(a, by: .pi, chroma: 0.9, lightness: 0.02)
+            case .analog: return rotate(a, by: 0.75, chroma: 1, lightness: 0.08)
             }
         }
         let cols = level.cols, rows = level.rows

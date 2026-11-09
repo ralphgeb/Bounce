@@ -54,8 +54,8 @@ final class MazeGame {
     /// close, and it's up to you (and your dots).
     var showsDistance: Bool { Double(stepsToStar) > Double(startSteps) * 0.2 }
 
-    /// The time for three stars: a second and a half a slide, plus ten seconds.
-    var parTime: Double { Double(fewestSlides) * 1.5 + 10 }
+    /// The time for three stars: two seconds a slide, plus fifteen seconds.
+    var parTime: Double { Double(fewestSlides) * 2 + 15 }
     private(set) var dotsLeft = 10
     /// The last dots you were given, and when (for the little animation).
     private(set) var dotGain = 0
@@ -72,10 +72,10 @@ final class MazeGame {
     @ObservationIgnored private(set) var light: [CGPoint] = []
     @ObservationIgnored private(set) var lit: [Int: Double] = [:]
     @ObservationIgnored private(set) var dots = Set<Int>()
-    /// Map squares hidden in the maze: step on one and the whole maze shows for 3 seconds.
+    /// Map squares hidden in the maze: step on one and the whole maze, star included, shows for 2 seconds.
     @ObservationIgnored private(set) var reveals = Set<Int>()
     @ObservationIgnored private(set) var revealLeft: Double = 0
-    let revealTime: Double = 3
+    let revealTime: Double = 2
     /// Walls you have lit on this level: shown on the map.
     @ObservationIgnored private(set) var seen = Set<Int>()
     /// 0 = normal view, 1 = the whole map. Eases towards mapTarget.
@@ -337,11 +337,11 @@ final class MazeGame {
         Haptics.notify(.success)
         let s = Settings.shared
         let key = String(level)
-        // Stars: three for close to the fewest slides within the time, two for up to about twice
-        // the fewest, one otherwise.
+        // Stars, with some leeway: three for up to half as many slides again as the fewest (plus two)
+        // within the time; two for up to about two and a half times the fewest; one otherwise.
         var stars = 1
-        if slides <= fewestSlides * 2 + 2 { stars = 2 }
-        if slides <= Int((Double(fewestSlides) * 1.25).rounded(.up)) && levelTime <= parTime { stars = 3 }
+        if slides <= Int((Double(fewestSlides) * 2.5).rounded(.up)) + 3 { stars = 2 }
+        if slides <= Int((Double(fewestSlides) * 1.5).rounded(.up)) + 2 && levelTime <= parTime { stars = 3 }
         lastStars = stars
         starsID += 1
         if stars > (s.mazeStars[key] ?? 0) { s.mazeStars[key] = stars }

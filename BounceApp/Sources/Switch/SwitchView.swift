@@ -2,21 +2,21 @@ import SwiftUI
 
 /// Switch's colours: five that go together, built around the theme's accent (Colour), and the logo.
 enum SwitchColors {
-    /// The seven colours, ordered so index 6 is the accent itself.
+    /// The six colours, ordered so index 5 is the accent itself.
     ///
-    /// Mono: four greys of the main colour (90%, 62%, 38%, 16%) and three tones of the accent
+    /// Mono: three greys of the main colour (90%, 55%, 20%) and three tones of the accent
     /// (deep, light, the accent).
-    /// Colour: three tones of a partner colour (the accent of another look, picked to sit well with
+    /// Colour: two tones of a partner colour (the accent of another look, picked to sit well with
     /// yours), a dark grey, and three tones of the accent.
     @MainActor static func palette(_ p: SwitchGame.Palette, _ colors: Colors) -> [Color] {
         let a = colors.accent
         let accentTones = [HueColor.shade(a, -0.38), HueColor.shade(a, 0.5), a]
         switch p {
         case .mono:
-            return [colors.ink.opacity(0.9), colors.ink.opacity(0.62), colors.ink.opacity(0.38), colors.ink.opacity(0.16)] + accentTones
+            return [colors.ink.opacity(0.9), colors.ink.opacity(0.55), colors.ink.opacity(0.2)] + accentTones
         case .colour:
             let b = Settings.shared.secondAccent.color
-            return [HueColor.shade(b, -0.42), b, HueColor.shade(b, 0.55), colors.ink.opacity(0.85)] + accentTones
+            return [HueColor.shade(b, -0.3), HueColor.shade(b, 0.45), colors.ink.opacity(0.85)] + accentTones
         }
     }
 
@@ -53,7 +53,7 @@ struct SwitchView: View {
 
     @State private var swiped = false
     @State private var from: Int?
-    /// The seven colours, worked out once (not every frame).
+    /// The six colours, worked out once (not every frame).
     @State private var palette: [Color] = []
 
     var body: some View {

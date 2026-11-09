@@ -39,9 +39,9 @@ final class SwitchGame {
 
     let cols = 8
     let rows = 8
-    /// Seven colours: four of one family and three of the accent (the last one, index 6, is the
+    /// Six colours: three of one family and three of the accent (the last one, index 5, is the
     /// accent itself, which the tutorial uses).
-    let shades = 7
+    let shades = 6
 
     private(set) var phase: Phase = .ready
     private(set) var score = 0

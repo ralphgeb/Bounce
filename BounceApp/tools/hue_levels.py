@@ -1,4 +1,5 @@
 """Draws the 50 Hue levels (Graphite accent and Sky as the second) into docs/hue-levels.png, with the same colour maths as HueLevels.swift."""
+import math
 from PIL import Image, ImageDraw, ImageFont
 def lin(v): return v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4
 def lab(c):
@@ -13,15 +14,22 @@ def rgb(c):
 mix=lambda a,b,t: tuple(x+(y-x)*t for x,y in zip(a,b))
 hx=lambda h: ((h>>16&255)/255,(h>>8&255)/255,(h&255)/255)
 W,K,A,B=lab(hx(0xF4F3EF)),lab(hx(0x1A1A1E)),lab(hx(0xFF6129)),lab(hx(0x6FB6F2))
-tok={'light':W,'dark':K,'accent':A,'second':B,'accentSoft':mix(A,W,0.55),'secondDeep':mix(B,K,0.45)}
+def rot(c,turn,k,dl):
+    ch=math.hypot(c[1],c[2])*k; h=math.atan2(c[2],c[1])+turn
+    return (min(0.92,c[0]+dl), ch*math.cos(h), ch*math.sin(h))
+tok={'light':W,'dark':K,'accent':A,'second':B,'accentSoft':mix(A,W,0.55),'secondDeep':mix(B,K,0.45),'accentDeep':mix(A,K,0.5),
+     'complement':rot(A,math.pi,0.9,0.02),'analog':rot(A,0.75,1,0.08)}
 PAL=[['light', 'accent', 'second', 'dark'], ['accent', 'light', 'dark', 'second'], ['light', 'accent', 'dark', 'accent'], ['accentSoft', 'second', 'accent', 'dark'], ['light', 'second', 'accent', 'dark'], ['accent', 'light', 'accent', 'dark'], ['second', 'accent', 'light', 'second'], ['accent', 'second', 'dark', 'light'], ['light', 'accent', 'accentSoft', 'dark'], ['accent', 'second', 'secondDeep', 'accentSoft']]
+FIRST=[['light','accent','complement','dark'],['accent','analog','light','complement'],['complement','accent','light','analog'],['light','analog','complement','accent'],['accent','light','complement','dark'],['analog','complement','accent','light'],['light','complement','accent','analog'],['accent','second','complement','light'],['complement','light','dark','accent'],['analog','accent','complement','dark']]
 def make(n):
-    d=min(1,(n-1)/24)
-    fx='border' if n<=6 else 'alternate' if n<=14 else 'cross' if n<=24 else 'anchors' if n<=38 else 'corners'
-    partial=[6,10,14,18,24,30,34]
+    d=(n-1)/49
+    fx='border' if n<=25 else 'alternate' if n<=40 else 'cross'
+    partial=[6,9,12,15,18,20,22,24,26,28]
     sh=str(partial[n-1]) if n<=len(partial) else 'all'
     size=[(5,5),(6,6),(6,7),(7,7)][n-1] if n<=4 else (7,8)
-    return (PAL[(n-1)%len(PAL)], 1-0.45*d**1.2, fx, sh, size)
+    allp=FIRST+PAL
+    cs=FIRST[n-1] if n<=len(FIRST) else allp[(n-1)%len(allp)]
+    return (cs, 1-0.3*d**1.1, fx, sh, size)
 L=[make(n) for n in range(1,51)]
 def fixed(kind,x,y):
     edge=x in(0,cols-1) or y in(0,rows-1); corner=x in(0,cols-1) and y in(0,rows-1)
