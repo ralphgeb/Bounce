@@ -384,7 +384,7 @@ final class Game {
                     ball.run = 0
                     Haptics.tap(.light, intensity: 0.6)
                     // A low marimba note, higher towards the paddle's right end.
-                    Sound.shared.note(Int((Double(t) + 1) * 1.5), volume: 0.55)
+                    Sound.shared.note(Int((Double(t) + 1) * 1.5), volume: 0.35)
                 }
 
                 // Blocks
@@ -433,7 +433,7 @@ final class Game {
         blocks[i].hit = 1
         guard blocks[i].hp <= 0 else {
             Haptics.tap(.soft, intensity: 0.4)
-            Sound.shared.play("bump", volume: 0.45)
+            Sound.shared.play("bump", volume: 0.3)
             return nil
         }
         let b = blocks.remove(at: i)
@@ -448,7 +448,7 @@ final class Game {
         let m = ball.chain
         score += b.max * m
         // Each break a note higher as the multiplier climbs: a run plays a little melody.
-        Sound.shared.note(3 + (m - 1) % 8, volume: 0.6)
+        Sound.shared.note(3 + (m - 1) % 8, volume: 0.4)
         ball.chain += 1     // no ceiling: it keeps counting
         ball.run += 1
         // Ten in a row without the paddle: an extra life (at most 5).
@@ -466,7 +466,7 @@ final class Game {
         guard let b = damage(i) else { return }
         let m = chain
         score += b.max * m
-        Sound.shared.note(5, volume: 0.35)
+        Sound.shared.note(5, volume: 0.18)
         trigger(b, ball: nil, mult: m)
     }
 

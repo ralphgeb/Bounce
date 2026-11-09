@@ -103,7 +103,7 @@ struct WelcomeView: View {
                         settings.lookID = look.id
                         settings.freeLook = look.id
                         Haptics.tap(.light)
-                        Sound.shared.play("glass", volume: 0.7)
+                        Sound.shared.play("tick")
                     } label: {
                         VStack(spacing: 9) {
                             LookSwatch(look: look, dark: scheme == .dark)

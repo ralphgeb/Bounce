@@ -235,7 +235,7 @@ final class SwitchGame {
         guard phase == .playing, !busy, let m = findMove() else { return }
         hint = (m.0, m.1, 2.2)
         Haptics.tap(.light)
-        Sound.shared.play("glass")
+        Sound.shared.play("glass", volume: 0.7)
     }
 
     // MARK: Board
@@ -469,7 +469,7 @@ final class SwitchGame {
         if sound { Haptics.tap(.heavy) } else { Haptics.tap(.rigid, intensity: 0.6) }
         // A marimba note that climbs with each chain; a swish when a power goes off; a chime
         // when you make one.
-        Sound.shared.note(2 + (combo - 1) * 2, volume: 0.65)
+        Sound.shared.note(2 + (combo - 1) * 2, volume: 0.45)
         if sound { Sound.shared.play("clear") }
         if !make.isEmpty { Sound.shared.play("power") }
         if combo >= 2 { show("×\(combo)") }

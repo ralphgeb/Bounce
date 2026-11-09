@@ -35,7 +35,7 @@ struct SettingsView: View {
                                 guard open else { showUnlock = true; return }
                                 settings.lookID = look.id
                                 Haptics.tap(.light)
-                                Sound.shared.play("glass", volume: 0.7)
+                                Sound.shared.play("tick")
                                 if iconFollowsLook { setIcon(look) }
                             } label: {
                                 VStack(spacing: 7) {

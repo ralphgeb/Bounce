@@ -1,9 +1,9 @@
 import AVFoundation
 import QuartzCore
 
-/// Bricks' sounds: soft marimba and bell notes in one calm scale (A minor pentatonic, so notes that
-/// overlap always sit well), airy swishes, water-drop plips, a soft thud and boom, and a slow pad.
-/// All made by tools/make_sounds.py.
+/// Bricks' sounds: calm and meditative. Kalimba notes in one scale (A minor pentatonic, so notes
+/// that overlap always sit well), singing bowls, breaths of air, wooden clicks, water drops and a
+/// felt thump, all with a little room around them. All made by tools/make_sounds.py.
 ///
 /// Played through one small engine with a few voices, so sounds can overlap without cutting each
 /// other off. "Ambient": it mixes with your music and goes quiet with the silent switch.
@@ -29,7 +29,8 @@ final class Sound {
             engine.connect(voice, to: engine.mainMixerNode, format: format)
             voices.append(voice)
         }
-        engine.mainMixerNode.outputVolume = 0.9
+        // Quiet by design: these are background sounds.
+        engine.mainMixerNode.outputVolume = 0.55
         for url in Bundle.main.urls(forResourcesWithExtension: "wav", subdirectory: nil) ?? [] {
             guard let file = try? AVAudioFile(forReading: url),
                   let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),

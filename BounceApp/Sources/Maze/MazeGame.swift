@@ -304,7 +304,7 @@ final class MazeGame {
         moving = d
         slides += 1
         // The swish of the slide: a little longer and louder for long ones.
-        Sound.shared.play(steps > 3 ? "swish_long" : "swish", volume: Float(min(1, 0.45 + Double(steps) * 0.08)), gap: 0.05)
+        Sound.shared.play(steps > 3 ? "swish_long" : "swish", volume: Float(min(0.55, 0.28 + Double(steps) * 0.04)), gap: 0.09)
     }
 
     private func arrive() {

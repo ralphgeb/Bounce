@@ -164,12 +164,12 @@ final class HueGame {
         coach.did(.swap)
         let right = (isRight(a) ? 1 : 0) + (isRight(b) ? 1 : 0)
         Haptics.tap(right > 0 ? .rigid : .light, intensity: right > 0 ? 0.8 : 0.5)
-        // A glassy note for a swap; a bell when a colour lands home, higher as the board fills in.
+        // The same soft swap as Switch; and a quiet note when a colour lands home, a little higher
+        // as the board fills in.
+        Sound.shared.play("swish_soft", volume: 0.7)
         if right > 0 {
             let done = Double(order.indices.filter(isRight).count) / Double(max(1, order.count))
-            Sound.shared.bell(3 + Int(done * 7), volume: 0.7)
-        } else {
-            Sound.shared.play("glass", volume: 0.6)
+            Sound.shared.note(3 + Int(done * 6), volume: 0.35)
         }
         if order.indices.allSatisfy(isRight) { solved() }
     }
