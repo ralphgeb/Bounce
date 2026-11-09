@@ -155,7 +155,7 @@ struct UnlockSheet: View {
             }
             VStack(spacing: 10) {
                 Button {
-                    Task { if await unlock.buy() { withAnimation { done = true } } }
+                    Task { if await unlock.buy() { Sound.shared.play("win"); withAnimation { done = true } } }
                 } label: {
                     ZStack {
                         if unlock.busy { ProgressView().tint(colors.background) } else { Text("Unlock · \(unlock.price)") }

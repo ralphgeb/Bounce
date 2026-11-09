@@ -71,7 +71,12 @@ struct ElasticDrag: ViewModifier {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 2)
                     .onChanged { drag = $0.translation }
-                    .onEnded { _ in drag = .zero }
+                    .onEnded { v in
+                        // Let go of a good stretch: a soft spring.
+                        let pull = hypot(v.translation.width, v.translation.height)
+                        if pull > 24 { Sound.shared.play("spring", volume: Float(min(1, pull / 160)), gap: 0.2) }
+                        drag = .zero
+                    }
             )
     }
 }
@@ -90,6 +95,7 @@ struct BackBar: View {
         HStack {
             Button {
                 Haptics.tap(.light)
+                Sound.shared.play("back")
                 action()
             } label: {
                 Image(systemName: "chevron.left")
@@ -101,7 +107,10 @@ struct BackBar: View {
             .accessibilityLabel("Games")
             Spacer()
             if let settings {
-                Button(action: settings) {
+                Button {
+                    Sound.shared.play("tap")
+                    settings()
+                } label: {
                     Image(systemName: "circle.lefthalf.filled")
                         .font(.system(size: 17))
                         .foregroundStyle(ink.opacity(0.45))

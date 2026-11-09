@@ -16,6 +16,8 @@ struct BounceApp: App {
             }
             .animation(.easeInOut(duration: 0.4), value: settings.onboarded)
             .preferredColorScheme(settings.mode.colorScheme)
+            // Load the sounds as the app opens, so the first one isn't late.
+            .task { Sound.shared.prepare() }
         }
     }
 }

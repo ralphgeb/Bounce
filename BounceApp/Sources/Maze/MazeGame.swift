@@ -222,6 +222,7 @@ final class MazeGame {
     }
 
     private func giveDots(_ n: Int) {
+        Sound.shared.play("twinkle", volume: 0.8)
         dotsLeft += n
         dotGain = n
         dotGainID += 1
@@ -232,7 +233,11 @@ final class MazeGame {
     func pinch(_ amount: Double) {
         guard phase == .playing else { return }
         mapTarget = max(0, min(1, amount))
-        if mapTarget > 0.5 && !pinchedOut { pinchedOut = true; Haptics.tap(.soft, intensity: 0.5) }
+        if mapTarget > 0.5 && !pinchedOut {
+            pinchedOut = true
+            Haptics.tap(.soft, intensity: 0.5)
+            Sound.shared.play("whoosh", volume: 0.5)
+        }
     }
 
     /// Fingers lifted: zoom back. The tutorial's map step finishes once you're back where you were.
@@ -249,16 +254,19 @@ final class MazeGame {
         if dots.contains(k) {
             dots.remove(k); dotsLeft += 1
             Haptics.tap(.soft, intensity: 0.6)
+            Sound.shared.play("plop")
             coach.did(.pickDot)
         } else if dotsLeft > 0 {
             dots.insert(k); dotsLeft -= 1
             Haptics.tap(.rigid, intensity: 0.6)
+            Sound.shared.play("plip")
             coach.did(.dropDot)
             // The next step is to pick this dot up: stay near it.
             if coach.current?.waitFor == .pickDot { anchor = tile; awayMoves = 0 }
         } else {
             show("No dots left")
             Haptics.notify(.warning)
+            Sound.shared.play("bump", volume: 0.6)
         }
         frame &+= 1
     }
@@ -289,11 +297,14 @@ final class MazeGame {
         guard steps > 0 else {
             bump = (d, 1)
             Haptics.tap(.soft, intensity: 0.35)
+            Sound.shared.play("bump", volume: 0.5, gap: 0.12)
             return
         }
         target = (x, y)
         moving = d
         slides += 1
+        // The swish of the slide: a little longer and louder for long ones.
+        Sound.shared.play(steps > 3 ? "swish_long" : "swish", volume: Float(min(1, 0.45 + Double(steps) * 0.08)), gap: 0.05)
     }
 
     private func arrive() {
@@ -311,7 +322,7 @@ final class MazeGame {
             if let a = anchor {
                 if a.x != t.x || a.y != t.y {
                     awayMoves += 1
-                    if awayMoves >= 2 { queued = nil; blinkTime = 0; return }
+                    if awayMoves >= 2 { queued = nil; blinkTime = 0; Sound.shared.play("swish_soft"); return }
                 } else {
                     awayMoves = 0
                 }
@@ -329,12 +340,14 @@ final class MazeGame {
         if inTutorial {
             flash = 1
             Haptics.notify(.success)
+            Sound.shared.play("win")
             coach.did(.goal)
             return
         }
         phase = .cleared
         flash = 1
         Haptics.notify(.success)
+        Sound.shared.play("win")
         let s = Settings.shared
         let key = String(level)
         // Stars, with some leeway: three for up to half as many slides again as the fewest (plus two)
@@ -343,6 +356,11 @@ final class MazeGame {
         if slides <= Int((Double(fewestSlides) * 2.5).rounded(.up)) + 3 { stars = 2 }
         if slides <= Int((Double(fewestSlides) * 1.5).rounded(.up)) + 2 && levelTime <= parTime { stars = 3 }
         lastStars = stars
+        // Then one bell for each star, rising.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.7))
+            Sound.shared.bells(Array([6, 8, 10].prefix(stars)), every: 0.22)
+        }
         starsID += 1
         if stars > (s.mazeStars[key] ?? 0) { s.mazeStars[key] = stars }
         if levelTime < (s.mazeTimes[key] ?? .infinity) { s.mazeTimes[key] = levelTime }
@@ -464,6 +482,7 @@ final class MazeGame {
             revealLeft = revealTime
             show("Map")
             Haptics.notify(.success)
+            Sound.shared.play("reveal")
         }
         if revealLeft > 0 {
             revealLeft = max(0, revealLeft - dt)

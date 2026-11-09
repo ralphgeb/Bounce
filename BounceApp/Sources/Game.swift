@@ -173,6 +173,7 @@ final class Game {
         b.v = CGVector(dx: cos(a) * sp, dy: sin(a) * sp)
         b.stuck = false
         balls[0] = b
+        Sound.shared.play("swish_soft", volume: 0.6)
     }
 
     private var baseSpeed: Double { min(Double(size.height) * 0.46 + elapsed * 1.5, Double(size.height) * 0.82) }
@@ -186,6 +187,7 @@ final class Game {
             if elapsed > s.longest { s.longest = elapsed }
         }
         Haptics.notify(.error)
+        Sound.shared.play("over")
         stopLoop()
         frame &+= 1
     }
@@ -285,6 +287,7 @@ final class Game {
         lives -= 1; freshLife = false
         Haptics.notify(.warning)
         if lives <= 0 { gameOver(); return true }
+        Sound.shared.play("lose", volume: 0.8)
         show(lives == 1 ? "Last life" : "\(lives) lives left")
         return false
     }
@@ -380,6 +383,8 @@ final class Game {
                     ball.chain = 1
                     ball.run = 0
                     Haptics.tap(.light, intensity: 0.6)
+                    // A low marimba note, higher towards the paddle's right end.
+                    Sound.shared.note(Int((Double(t) + 1) * 1.5), volume: 0.55)
                 }
 
                 // Blocks
@@ -428,6 +433,7 @@ final class Game {
         blocks[i].hit = 1
         guard blocks[i].hp <= 0 else {
             Haptics.tap(.soft, intensity: 0.4)
+            Sound.shared.play("bump", volume: 0.45)
             return nil
         }
         let b = blocks.remove(at: i)
@@ -441,6 +447,8 @@ final class Game {
         guard let b = damage(i) else { return }
         let m = ball.chain
         score += b.max * m
+        // Each break a note higher as the multiplier climbs: a run plays a little melody.
+        Sound.shared.note(3 + (m - 1) % 8, volume: 0.6)
         ball.chain += 1     // no ceiling: it keeps counting
         ball.run += 1
         // Ten in a row without the paddle: an extra life (at most 5).
@@ -448,6 +456,7 @@ final class Game {
             if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
             else { score += 50; show("+50") }
             Haptics.notify(.success)
+            Sound.shared.play("life")
         }
         trigger(b, ball: ball, mult: m)
     }
@@ -457,6 +466,7 @@ final class Game {
         guard let b = damage(i) else { return }
         let m = chain
         score += b.max * m
+        Sound.shared.note(5, volume: 0.35)
         trigger(b, ball: nil, mult: m)
     }
 
@@ -470,30 +480,36 @@ final class Game {
                 break
             case .split:
                 if let src = ball ?? balls.first(where: { !$0.stuck }) { split(from: src) }
+                Sound.shared.play("power")
             case .blaster:
                 shootLeft = shootTime
                 shotClock = 0
                 show("Blaster")
                 Haptics.notify(.success)
+                Sound.shared.play("power")
             case .row:
                 let band = CGRect(x: 0, y: b.rect.minY, width: size.width, height: b.rect.height)
                 cleared = take { abs($0.rect.midY - b.rect.midY) < cell / 2 }
                 sweeps.append((band, 1))
                 Haptics.tap(.heavy)
+                Sound.shared.play("clear")
             case .column:
                 let band = CGRect(x: b.rect.minX, y: top - 30, width: b.rect.width, height: dangerY - top + 30)
                 cleared = take { abs($0.rect.midX - b.rect.midX) < cell / 2 }
                 sweeps.append((band, 1))
                 Haptics.tap(.heavy)
+                Sound.shared.play("clear")
             case .bomb:
                 cleared = take { _ in true }
                 flash = 1
                 show("Clear")
                 Haptics.notify(.success)
+                Sound.shared.play("boom")
             case .heart:
                 if lives < 5 { lives += 1; freshLife = true; show("Extra life") }
                 else { score += 50; show("+50") }
                 Haptics.notify(.success)
+                Sound.shared.play("life")
             }
             for c in cleared {
                 score += c.max * mult

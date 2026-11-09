@@ -124,6 +124,7 @@ final class SwitchGame {
         // Drop the whole board in from above.
         for i in grid.indices { grid[i]?.y -= Double(rows) + 1 }
         step = .falling
+        Sound.shared.play("whoosh", volume: 0.5)
     }
 
     private func endTutorial() {
@@ -234,6 +235,7 @@ final class SwitchGame {
         guard phase == .playing, !busy, let m = findMove() else { return }
         hint = (m.0, m.1, 2.2)
         Haptics.tap(.light)
+        Sound.shared.play("glass")
     }
 
     // MARK: Board
@@ -336,6 +338,7 @@ final class SwitchGame {
         if tutorial != nil {
             guard let g = guide, g.cell == cell, g.dx == dx, g.dy == dy else {
                 Haptics.tap(.soft, intensity: 0.3)
+                Sound.shared.play("bump", volume: 0.35, gap: 0.15)
                 return
             }
             awaiting = true
@@ -347,6 +350,7 @@ final class SwitchGame {
         hint = nil
         step = .swapping(cell, other, back: false)
         Haptics.tap(.light, intensity: 0.5)
+        Sound.shared.play("swish_soft", volume: 0.7)
     }
 
     private func afterSwap(_ a: Int, _ b: Int, back: Bool) {
@@ -357,6 +361,7 @@ final class SwitchGame {
             grid.swapAt(a, b)
             step = .swapping(a, b, back: true)
             Haptics.tap(.soft, intensity: 0.4)
+            Sound.shared.play("bump", volume: 0.45)
             return
         }
         moves += 1
@@ -462,6 +467,11 @@ final class SwitchGame {
             grid[m.cell]?.grow = 0.4
         }
         if sound { Haptics.tap(.heavy) } else { Haptics.tap(.rigid, intensity: 0.6) }
+        // A marimba note that climbs with each chain; a swish when a power goes off; a chime
+        // when you make one.
+        Sound.shared.note(2 + (combo - 1) * 2, volume: 0.65)
+        if sound { Sound.shared.play("clear") }
+        if !make.isEmpty { Sound.shared.play("power") }
         if combo >= 2 { show("×\(combo)") }
         step = .clearing(slowClear ? 0.8 : tutorial != nil ? 0.35 : 0.2)
     }
@@ -535,6 +545,7 @@ final class SwitchGame {
         if tutorial != nil { return }
         if !hasMove() {
             show("Shuffle")
+            Sound.shared.play("whoosh", volume: 0.6)
             repeat {
                 for i in grid.indices { grid[i]?.shade = Int.random(in: 0..<shades) }
             } while !currentRuns().isEmpty || !hasMove()

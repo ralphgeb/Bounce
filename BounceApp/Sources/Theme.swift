@@ -98,6 +98,7 @@ final class Settings {
     var lookID: String { didSet { defaults.set(lookID, forKey: "look") } }
     var mode: AppearanceMode { didSet { defaults.set(mode.rawValue, forKey: "mode") } }
     var haptics: Bool { didSet { defaults.set(haptics, forKey: "haptics") } }
+    var sound: Bool { didSet { defaults.set(sound, forKey: "sound") } }
     var best: Int { didSet { defaults.set(best, forKey: "best") } }
     var longest: Double { didSet { defaults.set(longest, forKey: "longest") } }
     /// Maze: the deepest level reached, and the fastest time for each level ("1": seconds).
@@ -120,6 +121,7 @@ final class Settings {
         onboarded = defaults.bool(forKey: "onboarded")
         mode = AppearanceMode(rawValue: defaults.string(forKey: "mode") ?? "") ?? .system
         haptics = defaults.object(forKey: "haptics") as? Bool ?? true
+        sound = defaults.object(forKey: "sound") as? Bool ?? true
         best = defaults.integer(forKey: "best")
         longest = defaults.double(forKey: "longest")
         mazeDeepest = defaults.integer(forKey: "maze.deepest")

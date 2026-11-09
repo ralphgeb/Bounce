@@ -66,6 +66,7 @@ final class Coach {
 
     func next() {
         Haptics.tap(.light, intensity: 0.6)
+        Sound.shared.play("tick", volume: 0.8)
         if index + 1 < steps.count {
             index += 1
             stepID += 1

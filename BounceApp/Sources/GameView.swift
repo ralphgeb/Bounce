@@ -300,6 +300,7 @@ struct OutlineButton: View {
     var body: some View {
         Button {
             Haptics.tap(.medium)
+            Sound.shared.play("tap")
             action()
         } label: {
             Text(title.uppercased())

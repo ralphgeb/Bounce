@@ -12,6 +12,13 @@ On the menu, drag in a game's section and its logo stretches after your finger a
 
 **Unlock everything** (£1.99, once): every game can be played without it. It opens Maze and Hue past level 2, every look (the one picked at the start is free; the others show a padlock in Settings), and keeps your best scores in Bounce and Switch (without it, you see your score but your best isn't saved). Tapping a locked level or look (or Settings › Unlock everything) opens the unlock sheet, which uses Apple's own payment sheet (StoreKit 2) and has Restore purchases. In TestFlight it's Apple's sandbox, so nothing is charged. For trying it out, Settings › Unlock has **Apply paywall** (off = everything open) and **Reset purchase** (locks it all again on this iPhone until you buy or restore again). The product is created in App Store Connect by `.github/workflows/bounce-unlock-setup.yml`; Apple's Paid Applications Agreement must be signed in App Store Connect › Business.
 
+**Sounds**: calm and minimal, all synthesised by `BounceApp/tools/make_sounds.py` (no samples): soft marimba and bell notes tuned to one scale (A minor pentatonic, so notes that overlap always sit well), airy swishes, water-drop plips, a soft thud and boom, and a slow shimmering pad. They mix with your music and go quiet with the silent switch; Settings › Sounds turns them off.
+- Menu and buttons: a soft wooden tap, a lower one for back, a two-note bell opening a game, a gentle spring when a stretched logo is let go, a tick as tutorial steps move on.
+- Bounce: the paddle is a low marimba note (higher towards its right end); each break is a note higher as the ball's multiplier climbs, so a run plays a little melody; a knock for a square that doesn't break; a chime for split and blaster, a swish for row and column clearers, a soft boom for the circle, a rising arpeggio for a heart or extra life, two falling notes for a lost life and a descending phrase at the end.
+- Maze: an airy swish for each slide (longer for long ones), a soft bump at a wall, a water-drop plip dropping a dot and a rising plop picking it up, a whoosh pinching out to the map, a shimmering pad when a map square shows the whole maze, a twinkle for new dots, and a bell arpeggio at the star followed by one bell per star won.
+- Switch: a soft swish for a swap and a muted bump when it swaps back; each clear a marimba note that climbs with the chain; a chime making a power and a swish when one goes off; a glassy ping for a hint; a whoosh as the board drops in or shuffles.
+- Hue: a tick picking a square up; a glassy note for a swap, or a bell when a colour lands home, higher as the board fills in; a whoosh as it shuffles; an arpeggio when solved, then a bell per star.
+
 **Tutorials**: the first time you play each game, a short tutorial teaches it by doing, on the real game, one thing at a time. Action steps show a small, see-through centred panel (at the top, or low for Bounce) and leave the game playable, with Skip at the bottom of the screen; pausing puts Carry on above the tutorial; rule cards sit in the middle and move on with a tap; the game waits while a card is up. Each tutorial is played on its own small board so the instructions above never cover it: Maze has a tutorial maze (a corridor to slide along, a dot to drop, move away from and come back to pick up, the map, the counter to the star, pointed out with a pulsing outline, then up and right to the star) before level 1; Switch plays seven guided moves where everything falls after each clear but nothing chains; Hue starts with one row of five shades to put back in order with two swaps. The squares to use are outlined and a finger shows the move. Skip is always there; Settings › Show tutorials again (above the records) brings them back. In Maze's tutorial, while it asks you to drop or pick up a dot, sliding two moves away fades the screen and brings you back to the spot.
 
 ## Maze
@@ -72,7 +79,8 @@ BounceApp/
     BounceApp.swift    entry point: the menu and each game's screens
     Menu/              the menu: a section per game
     Onboarding/        the first-launch welcome and look picker
-    Common/            the stretchy logo, the back arrow, the frame timer, Unlock everything
+    Common/            the stretchy logo, the back arrow, the frame timer, Unlock everything, sounds
+    Sources/Sounds/    the sound effects (made by tools/make_sounds.py)
     Maze/              Maze: the maze and the light, the game, drawing, its screens
     Switch/            Switch: the board, the rules, drawing, its screens
     Hue/               Hue: the levels and colour maths, the game, its screens

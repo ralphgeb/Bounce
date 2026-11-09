@@ -25,7 +25,7 @@ struct MenuView: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                Button { showSettings = true } label: {
+                Button { Sound.shared.play("tap"); showSettings = true } label: {
                     Image(systemName: "circle.lefthalf.filled")
                         .font(.system(size: 17))
                         .foregroundStyle(c.ink.opacity(0.45))
@@ -105,10 +105,14 @@ struct MenuView: View {
                 .onEnded { _ in
                     // A tap opens the game; a drag only stretches the logo.
                     let tapped = travelled < 10
+                    if !tapped && travelled > 24 {
+                        Sound.shared.play("spring", volume: Float(min(1, travelled / 160)), gap: 0.2)
+                    }
                     drag = .zero
                     pressed = nil
                     if tapped {
                         Haptics.tap(.medium)
+                        Sound.shared.play("open")
                         open(screen)
                     }
                 }

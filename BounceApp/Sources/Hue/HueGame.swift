@@ -110,6 +110,7 @@ final class HueGame {
         }
         phase = .playing
         Haptics.tap(.medium)
+        Sound.shared.play("whoosh", volume: 0.55)
         coach.begin("hue", steps: [
             .init(text: "Put the colours back in order.\nThey run smoothly from one end to the other.\nSquares with a dot never move.",
                   waitFor: .tapToContinue, inline: true),
@@ -130,7 +131,7 @@ final class HueGame {
     /// Drag a square: it lifts and follows the finger.
     func drag(from place: Int, to point: CGPoint) {
         guard phase == .playing, !isFixed(place) else { return }
-        if dragging == nil { Haptics.tap(.light, intensity: 0.5); picked = nil }
+        if dragging == nil { Haptics.tap(.light, intensity: 0.5); Sound.shared.play("tick", volume: 0.7); picked = nil }
         dragging = (place, point)
     }
 
@@ -144,7 +145,7 @@ final class HueGame {
     /// Tap one square, then another, to swap them.
     func tap(_ place: Int) {
         guard phase == .playing, !isFixed(place) else {
-            if phase == .playing { Haptics.tap(.soft, intensity: 0.3) }
+            if phase == .playing { Haptics.tap(.soft, intensity: 0.3); Sound.shared.play("bump", volume: 0.3, gap: 0.15) }
             return
         }
         if let p = picked {
@@ -153,6 +154,7 @@ final class HueGame {
         } else {
             picked = place
             Haptics.tap(.light, intensity: 0.5)
+            Sound.shared.play("tick", volume: 0.7)
         }
     }
 
@@ -162,6 +164,13 @@ final class HueGame {
         coach.did(.swap)
         let right = (isRight(a) ? 1 : 0) + (isRight(b) ? 1 : 0)
         Haptics.tap(right > 0 ? .rigid : .light, intensity: right > 0 ? 0.8 : 0.5)
+        // A glassy note for a swap; a bell when a colour lands home, higher as the board fills in.
+        if right > 0 {
+            let done = Double(order.indices.filter(isRight).count) / Double(max(1, order.count))
+            Sound.shared.bell(3 + Int(done * 7), volume: 0.7)
+        } else {
+            Sound.shared.play("glass", volume: 0.6)
+        }
         if order.indices.allSatisfy(isRight) { solved() }
     }
 
@@ -174,7 +183,7 @@ final class HueGame {
     private func solved() {
         phase = .solved
         solvedAge = 0
-        if inTutorial { Haptics.notify(.success); return }
+        if inTutorial { Haptics.notify(.success); Sound.shared.play("win"); return }
         let s = Settings.shared
         let key = String(number)
         // Stars: three for the fewest swaps, two for a few more, one otherwise.
@@ -184,6 +193,12 @@ final class HueGame {
         if number > s.hueSolved { s.hueSolved = number }
         chosen = min(HueLevels.count, number + 1)
         Haptics.notify(.success)
+        Sound.shared.play("win")
+        let won = stars
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.8))
+            Sound.shared.bells(Array([6, 8, 10].prefix(won)), every: 0.22)
+        }
     }
 
     // MARK: Loop

@@ -35,6 +35,7 @@ struct SettingsView: View {
                                 guard open else { showUnlock = true; return }
                                 settings.lookID = look.id
                                 Haptics.tap(.light)
+                                Sound.shared.play("glass", volume: 0.7)
                                 if iconFollowsLook { setIcon(look) }
                             } label: {
                                 VStack(spacing: 7) {
@@ -76,6 +77,8 @@ struct SettingsView: View {
                 .listRowBackground(colors.ink.opacity(0.04))
 
                 Section {
+                    Toggle("Sounds", isOn: $settings.sound).tint(colors.accent)
+                        .onChange(of: settings.sound) { _, on in if on { Sound.shared.play("toggle") } }
                     Toggle("Haptics", isOn: $settings.haptics).tint(colors.accent)
                 }
                 .listRowBackground(colors.ink.opacity(0.04))
